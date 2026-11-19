@@ -1,0 +1,72 @@
+import type { Metadata } from "next";
+import { Suspense } from "react";
+import { AlertTriangle } from "lucide-react";
+import { parseTableParams } from "@/components/common/table/table-params";
+import { BookingTable } from "@/components/dashboard/bookings/booking-table";
+import { EmptyState } from "@/components/dashboard/shared/empty-state";
+import { PageHeader } from "@/components/dashboard/shared/page-header";
+import { getAdminBookingsAction } from "@/features/booking/actions";
+import { getLanguagesAction } from "@/features/language/actions";
+import { pickLanguage } from "@/lib/localized";
+import { getLanguageCookie } from "@/lib/preferences";
+import { AutoRefresh } from "@/components/shared/auto-refresh";
+
+export const metadata: Metadata = { title: "Bookings" };
+
+async function BookingsContent({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
+  const params = parseTableParams(await searchParams, ["status"]);
+  const [langRes, saved] = await Promise.all([
+    getLanguagesAction(),
+    getLanguageCookie(),
+  ]);
+  const lang = pickLanguage(langRes.languages ?? [], saved);
+  const res = await getAdminBookingsAction(params);
+
+  if (res.success && res.bookings && res.meta) {
+    return (
+      <BookingTable
+        bookings={res.bookings}
+        meta={res.meta}
+        lang={lang}
+        showUser
+        showEvent
+        enableFilters
+      />
+    );
+  }
+
+  return (
+    <EmptyState
+      icon={AlertTriangle}
+      title="Could not load bookings"
+      description={res.message}
+    />
+  );
+}
+
+export default function AdminBookingsPage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
+  return (
+    <div>
+      <AutoRefresh />
+      <PageHeader
+        title="Bookings"
+        subtitle="All ticket bookings across the platform, with dates and status."
+      />
+      <Suspense
+        fallback={
+          <div className="h-96 animate-pulse rounded-3xl bg-fg/10" />
+        }
+      >
+        <BookingsContent searchParams={searchParams} />
+      </Suspense>
+    </div>
+  );
+}

@@ -1,0 +1,44 @@
+package dto
+
+import "gorm.io/datatypes"
+
+type SocialMediaLink struct {
+	Name string `json:"name"`
+	Link string `json:"link"`
+}
+
+type PageSettingResponse struct{
+	ID                       uint              `json:"id"`
+	CreatedAt                string            `json:"created_at"`
+	UpdatedAt                string            `json:"updated_at"`
+	Slug    string                 `json:"slug"`
+	Content datatypes.JSON `json:"content"`
+}
+
+type Response struct {
+	ID                       uint              `json:"id"`
+	CreatedAt                string            `json:"created_at"`
+	UpdatedAt                string            `json:"updated_at"`
+	SiteName                 string            `json:"site_name"`
+	SiteEmail                string            `json:"site_email"`
+	SitePhone                string            `json:"site_phone"`
+	SiteLogo                 string            `json:"site_logo"`
+	SiteAddress              string            `json:"site_address"`
+	SiteDescription          string            `json:"site_description"`
+	SiteFooter               string            `json:"site_footer"`
+	ClientSideURL            string            `json:"client_side_url"`
+	ServerSideURL            string            `json:"server_side_url"`
+	SocialMediaLink          []SocialMediaLink `json:"social_media_link"`
+	SslCommerzeStoreID       string            `json:"sslCommerze_store_id"`
+	SslCommerzeStorePassword string            `json:"sslCommerze_store_password"`
+	SslCommerzeSuccessURL    string            `json:"sslCommerze_success_url"`
+	SslCommerzeFailedURL     string            `json:"sslCommerze_failed_url"`
+	SslCommerzeCancelURL     string            `json:"sslCommerze_cancel_url"`
+	StripePublishableKey     string            `json:"stripe_publishable_key"`
+	StripeSecretKey          string            `json:"stripe_secret_key"`
+	StripeSuccessURL         string            `json:"stripe_success_url"`
+	StripeFailedURL          string            `json:"stripe_failed_url"`
+	StripeCancelURL          string            `json:"stripe_cancel_url"`
+	StripeWebhookSecret      string            `json:"stripe_webhook_secret"`
+
+}

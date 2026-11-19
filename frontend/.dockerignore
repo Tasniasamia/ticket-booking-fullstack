@@ -1,0 +1,12 @@
+node_modules
+.dist
+.vscode/
+.vercel
+.env
+.env.local
+.env.development.local
+.git
+.gitignore
+*.md
+docker-compose*.yml
+Dockerfile

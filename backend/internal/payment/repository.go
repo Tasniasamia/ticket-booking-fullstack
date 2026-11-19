@@ -1,0 +1,636 @@
+package payment
+
+import (
+	"errors"
+	// "strings"
+	// "ticketBooking/internal/utils/query"
+"strings"
+	// ... তোমার অন্য imports
+	"ticketBooking/internal/utils/query"
+
+	"gorm.io/gorm"
+)
+
+var (
+	ErrPaymentNotFound       = errors.New("payment not found")
+	ErrPaymentMethodNotFound = errors.New("payment method not found")
+	ErrPaymentMethodExists   = errors.New("payment method with this code already exists")
+)
+
+// PaymentAmountRow — status + currency grouped sum for aggregation.
+type PaymentAmountRow struct {
+	Status   string  `json:"status"`
+	Currency string  `json:"currency"`
+	Total    float64 `json:"total"`
+}
+
+type Repository interface {
+	// Payments
+	Create(p *Payment) error
+	Update(p *Payment) error
+	GetByID(id uint) (*Payment, error)
+	GetByTransactionID(tranID string) (*Payment, error)
+	GetBySessionID(sessionID string) (*Payment, error)
+	GetByBookingID(bookingID uint) (*Payment, error)
+	GetByUserID(userID uint) ([]Payment, error)
+	GetAllPayments(params query.Params,lang string) ([]*Payment, int64, error)
+	GetManagerPayments(params query.Params, managerID uint,lang string) ([]*Payment, int64, error)
+	GetUserPayments(params query.Params, userID uint,lang string) ([]*Payment, int64, error)
+
+	AggregateAllPayments(params query.Params) ([]PaymentAmountRow, error)
+	AggregateManagerPayments(params query.Params, managerID uint) ([]PaymentAmountRow, error)
+	AggregateUserPayments(params query.Params, userID uint) ([]PaymentAmountRow, error)
+
+	// Payment methods
+	CreateMethod(m *PaymentMethod) error
+	UpdateMethod(m *PaymentMethod) error
+	DeleteMethod(id uint) error
+	GetMethodByID(id uint) (PaymentMethod, error)
+	GetMethodByCode(code string) (PaymentMethod, error)
+	ListMethods(p query.Params,enabledOnly bool) ([]PaymentMethod,int64, error)
+	ListMethodsAdmin(p query.Params) ([]PaymentMethod,int64, error)
+}
+
+type repository struct{ db *gorm.DB }
+
+func NewRepository(db *gorm.DB) Repository { return &repository{db: db} }
+// qualifyPaymentParams — join query-তে bare column ambiguous হয়
+// status/created_at দুটোই payments + bookings এ আছে
+func qualifyPaymentParams(p query.Params) query.Params {
+	out := p
+	if p.Filters != nil {
+		nf := make(map[string]interface{}, len(p.Filters))
+		for k, v := range p.Filters {
+			if strings.Contains(k, ".") {
+				nf[k] = v
+				continue
+			}
+			switch k {
+			case "status", "amount", "currency", "transaction_id", "paid_at",
+				"created_at", "updated_at", "payment_method", "booking_id",
+				"event_id", "user_id", "reason":
+				nf["payments."+k] = v
+			case "booking_code":
+				nf["bookings.booking_code"] = v
+			default:
+				nf[k] = v // unknown — as-is (বা skip করতে পারো)
+			}
+		}
+		out.Filters = nf
+	}
+
+	// default sort_by = "created_at" → payments.created_at
+	sb := p.SortBy
+	if sb == "" {
+		sb = "created_at"
+	}
+	if !strings.Contains(sb, ".") {
+		switch sb {
+		case "status", "amount", "created_at", "updated_at", "paid_at", "transaction_id", "currency":
+			out.SortBy = "payments." + sb
+		default:
+			out.SortBy = "payments.created_at"
+		}
+	}
+	return out
+}
+func (r *repository) Create(p *Payment) error { return r.db.Create(p).Error }
+func (r *repository) Update(p *Payment) error { return r.db.Save(p).Error }
+
+func (r *repository) GetByID(id uint) (*Payment, error) {
+	var p Payment
+	err := r.db.First(&p, id).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, ErrPaymentNotFound
+	}
+	return &p, err
+}
+
+func (r *repository) GetByTransactionID(tranID string) (*Payment, error) {
+	var p Payment
+	err := r.db.Where("transaction_id = ?", tranID).Order("created_at DESC").Preload("Bookings").Preload("UserInfo").Preload("EventInfo").Preload("EventInfo.Manager").Preload("EventInfo.Category").First(&p).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, ErrPaymentNotFound
+	}
+	return &p, err
+}
+
+func (r *repository) GetBySessionID(sessionID string) (*Payment, error) {
+	var p Payment
+	err := r.db.Where("gateway_session_id = ?", sessionID).Order("created_at DESC").Preload("Bookings").Preload("UserInfo").Preload("EventInfo").Preload("EventInfo.Manager").Preload("EventInfo.Category").First(&p).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, ErrPaymentNotFound
+	}
+	return &p, err
+}
+
+func (r *repository) GetByBookingID(bookingID uint) (*Payment, error) {
+	var p Payment
+	err := r.db.Where("booking_id = ?", bookingID).Order("created_at DESC").Preload("Bookings").Preload("UserInfo").Preload("EventInfo").Preload("EventInfo.Manager").Preload("EventInfo.Category").First(&p).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, ErrPaymentNotFound
+	}
+	return &p, err
+}
+
+func (r *repository) GetByUserID(userID uint) ([]Payment, error) {
+	var list []Payment
+	err := r.db.Where("user_id = ?", userID).Order("created_at DESC").Order("created_at DESC").Preload("Bookings").Preload("UserInfo").Preload("EventInfo").Preload("EventInfo.Manager").Preload("EventInfo.Category").Find(&list).Error
+	return list, err
+}
+
+// func (r *repository) GetAllPayments(params query.Params,lang string) ([]*Payment, int64, error) {
+//     var list  []*Payment
+// 	var total int64
+
+// 	db := r.db.Model(&Payment{}).
+// 		Joins("JOIN events ON events.id = payments.event_id").
+// 		Joins("JOIN bookings ON bookings.id = payments.booking_id").
+// 		Joins("JOIN users ON users.id = payments.user_id")
+
+
+//    searchFields := []string{
+// 		"payments.transaction_id", "payments.status", "CAST(payments.paid_at AS TEXT)", "CAST(payments.amount AS TEXT)", }
+
+// 	// events.title / description যদি সাধারণ string হয়
+// 	joinedJsonbFields := []string{
+// 		"events.title",
+// 		"events.description",
+	
+// 	}
+
+// 	// যদি events.title / description JSONB হয় (multi-lang), তাহলে এখানে দাও:
+// 	// joinedJsonbFields := []string{"events.title", "events.description"}
+// 	joinedSearchFields := []string{	// "bookings.total_price", // number → ILIKE করবে না, চাইলে CAST করো
+// 		"users.name",
+// 		"users.email",
+// 		"users.role",
+// 	"bookings.booking_code",
+// } // এখন খালি রাখলাম
+
+// 	db = query.Apply(
+// 		db,
+// 		params,
+// 		searchFields,
+// 		nil,                 // jsonbFields (same table)
+// 		lang,                 // lang
+// 		joinedJsonbFields,   // joined JSONB
+// 		joinedSearchFields,  // joined string
+// 	)
+
+// 	if err := db.Count(&total).Error; err != nil {
+// 		return nil, 0, err
+// 	}
+
+// 	db = query.Paginate(db, params)
+
+// 	err := db.
+// 		Preload("Bookings").
+// 		Preload("UserInfo").
+// 		Preload("EventInfo").
+// 		Preload("EventInfo.Manager").
+// 		Preload("EventInfo.Category").
+// 		Find(&list).Error
+
+// 	if err != nil {
+// 		return nil, 0, err
+// 	}
+
+// 	return list, total, nil
+
+
+
+
+
+
+
+
+
+// 	// db = query.Apply(db, params,[]string{"transaction_id", "status", "created_at"},nil, nil,nil,nil)
+
+// 	// if err := db.Count(&total).Error; err != nil {
+// 	// 	return nil, 0, err
+// 	// }
+
+// 	// db = query.Paginate(db, params)
+
+// 	// err := db.Order("created_at DESC").Preload("Bookings").Preload("UserInfo").Preload("EventInfo").Preload("EventInfo.Manager").Preload("EventInfo.Category").Find(&list).Error
+
+// 	// if err != nil {
+// 	// 	return nil, 0, err
+// 	// }
+
+// 	// return list, total, nil
+// }
+
+func (r *repository) GetAllPayments(params query.Params, lang string) ([]*Payment, int64, error) {
+	var list []*Payment
+	var total int64
+
+	params = qualifyPaymentParams(params)
+
+	db := r.db.Model(&Payment{}).
+		Joins("JOIN events ON events.id = payments.event_id").
+		Joins("JOIN bookings ON bookings.id = payments.booking_id").
+		Joins("JOIN users ON users.id = payments.user_id")
+
+	searchFields := []string{
+		"payments.transaction_id",
+		"payments.status",
+		"CAST(payments.paid_at AS TEXT)",
+		"CAST(payments.amount AS TEXT)",
+	}
+	joinedJsonbFields := []string{
+		"events.title",
+		"events.description",
+	}
+	joinedSearchFields := []string{
+		"users.name",
+		"users.email",
+		"users.role",
+		"bookings.booking_code",
+	}
+
+	db = query.Apply(
+		db,
+		params,
+		searchFields,
+		nil, // jsonbFields (same table)
+		lang,
+		joinedJsonbFields,
+		joinedSearchFields,
+	)
+
+	if err := db.Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+
+	db = query.Paginate(db, params)
+
+	err := db.
+		Preload("Bookings").
+		Preload("UserInfo").
+		Preload("EventInfo").
+		Preload("EventInfo.Manager").
+		Preload("EventInfo.Category").
+		Find(&list).Error
+
+	if err != nil {
+		return nil, 0, err
+	}
+
+	return list, total, nil
+}
+func (r *repository) GetManagerPayments(params query.Params, managerID uint, lang string) ([]*Payment, int64, error) {
+	var list []*Payment
+	var total int64
+
+	params = qualifyPaymentParams(params)
+
+	db := r.db.Model(&Payment{}).
+		Joins("JOIN events ON events.id = payments.event_id").
+		Joins("JOIN bookings ON bookings.id = payments.booking_id").
+		Joins("JOIN users ON users.id = payments.user_id").
+		Where("events.manager_id = ?", managerID)
+
+	searchFields := []string{
+		"payments.transaction_id",
+		"payments.status",
+		"CAST(payments.paid_at AS TEXT)",
+		"CAST(payments.amount AS TEXT)",
+	}
+	joinedJsonbFields := []string{
+		"events.title",
+		"events.description",
+	}
+	joinedSearchFields := []string{
+		"users.name",
+		"users.email",
+		"users.role",
+		"bookings.booking_code",
+	}
+
+	db = query.Apply(
+		db,
+		params,
+		searchFields,
+		nil,
+		lang,
+		joinedJsonbFields,
+		joinedSearchFields,
+	)
+
+	if err := db.Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+
+	db = query.Paginate(db, params)
+
+	err := db.
+		Preload("Bookings").
+		Preload("UserInfo").
+		Preload("EventInfo").
+		Preload("EventInfo.Manager").
+		Preload("EventInfo.Category").
+		Find(&list).Error
+
+	if err != nil {
+		return nil, 0, err
+	}
+
+	return list, total, nil
+}
+
+func (r *repository) GetUserPayments(params query.Params, userID uint, lang string) ([]*Payment, int64, error) {
+	var list []*Payment
+	var total int64
+
+	params = qualifyPaymentParams(params)
+
+	db := r.db.Model(&Payment{}).
+		Joins("JOIN events ON events.id = payments.event_id").
+		Joins("JOIN bookings ON bookings.id = payments.booking_id").
+		Joins("JOIN users ON users.id = payments.user_id").
+		Where("payments.user_id = ?", userID)
+
+	searchFields := []string{
+		"payments.transaction_id",
+		"payments.status",
+		"CAST(payments.paid_at AS TEXT)",
+		"CAST(payments.amount AS TEXT)",
+	}
+	joinedJsonbFields := []string{
+		"events.title",
+		"events.description",
+	}
+	joinedSearchFields := []string{
+		"users.name",
+		"users.email",
+		"users.role",
+		"bookings.booking_code",
+	}
+
+	db = query.Apply(
+		db,
+		params,
+		searchFields,
+		nil,
+		lang,
+		joinedJsonbFields,
+		joinedSearchFields,
+	)
+
+	if err := db.Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+
+	db = query.Paginate(db, params)
+
+	err := db.
+		Preload("Bookings").
+		Preload("UserInfo").
+		Preload("EventInfo").
+		Preload("EventInfo.Manager").
+		Preload("EventInfo.Category").
+		Find(&list).Error
+
+	if err != nil {
+		return nil, 0, err
+	}
+
+	return list, total, nil
+}
+// func (r *repository) GetManagerPayments(params query.Params, managerID uint,lang string) ([]*Payment, int64, error) {
+// 	var list []*Payment
+// 	var total int64
+
+// 	db := r.db.Model(&Payment{}).
+// 		Joins("JOIN events ON events.id = payments.event_id").
+// 		Joins("JOIN bookings ON bookings.id = payments.booking_id").
+// 		Joins("JOIN users ON users.id = payments.user_id").
+// 		Where("events.manager_id = ?", managerID)
+
+// 	// same table (payments)
+// 	searchFields := []string{
+// 		"payments.transaction_id", "payments.status", "CAST(payments.paid_at AS TEXT)", "CAST(payments.amount AS TEXT)", }
+
+// 	// events.title / description যদি সাধারণ string হয়
+// 	joinedJsonbFields := []string{
+// 		"events.title",
+// 		"events.description",
+	
+// 	}
+
+// 	// যদি events.title / description JSONB হয় (multi-lang), তাহলে এখানে দাও:
+// 	// joinedJsonbFields := []string{"events.title", "events.description"}
+// 	joinedSearchFields := []string{	// "bookings.total_price", // number → ILIKE করবে না, চাইলে CAST করো
+// 		"users.name",
+// 		"users.email",
+// 		"users.role",
+// 	"bookings.booking_code",
+// } // এখন খালি রাখলাম
+
+// 	db = query.Apply(
+// 		db,
+// 		params,
+// 		searchFields,
+// 		nil,                 // jsonbFields (same table)
+// 		lang,                 // lang
+// 		joinedJsonbFields,   // joined JSONB
+// 		joinedSearchFields,  // joined string
+// 	)
+
+// 	if err := db.Count(&total).Error; err != nil {
+// 		return nil, 0, err
+// 	}
+
+// 	db = query.Paginate(db, params)
+
+// 	err := db.
+// 		Preload("Bookings").
+// 		Preload("UserInfo").
+// 		Preload("EventInfo").
+// 		Preload("EventInfo.Manager").
+// 		Preload("EventInfo.Category").
+// 		Find(&list).Error
+
+// 	if err != nil {
+// 		return nil, 0, err
+// 	}
+
+// 	return list, total, nil
+// }
+
+// func (r *repository) GetUserPayments(params query.Params, userID uint,lang string) ([]*Payment, int64, error){
+// 	var list  []*Payment
+// 	var total int64
+
+// 	db := r.db.Model(&Payment{}).
+// 		Joins("JOIN events ON events.id = payments.event_id").
+// 		Joins("JOIN bookings ON bookings.id = payments.booking_id").
+// 		Joins("JOIN users ON users.id = payments.user_id").Where("payments.user_id = ?", userID)
+
+// searchFields := []string{
+// 		"payments.transaction_id", "payments.status", "CAST(payments.paid_at AS TEXT)", "CAST(payments.amount AS TEXT)", }
+
+// 	// events.title / description যদি সাধারণ string হয়
+// 	joinedJsonbFields := []string{
+// 		"events.title",
+// 		"events.description",
+	
+// 	}
+
+// 	// যদি events.title / description JSONB হয় (multi-lang), তাহলে এখানে দাও:
+// 	// joinedJsonbFields := []string{"events.title", "events.description"}
+// 	joinedSearchFields := []string{	// "bookings.total_price", // number → ILIKE করবে না, চাইলে CAST করো
+// 		"users.name",
+// 		"users.email",
+// 		"users.role",
+// 	"bookings.booking_code",
+// } // এখন খালি রাখলাম
+
+// 	db = query.Apply(
+// 		db,
+// 		params,
+// 		searchFields,
+// 		nil,                 // jsonbFields (same table)
+// 		lang,                 // lang
+// 		joinedJsonbFields,   // joined JSONB
+// 		joinedSearchFields,  // joined string
+// 	)
+
+// 	if err := db.Count(&total).Error; err != nil {
+// 		return nil, 0, err
+// 	}
+
+// 	db = query.Paginate(db, params)
+
+// 	err := db.
+// 		Preload("Bookings").
+// 		Preload("UserInfo").
+// 		Preload("EventInfo").
+// 		Preload("EventInfo.Manager").
+// 		Preload("EventInfo.Category").
+// 		Find(&list).Error
+
+// 	if err != nil {
+// 		return nil, 0, err
+// 	}
+
+// 	return list, total, nil
+// }
+
+func applyAggregateFilters(db *gorm.DB, params query.Params, searchFields []string) *gorm.DB {
+	if params.Search != "" && len(searchFields) > 0 {
+		var conditions []string
+		var args []interface{}
+		for _, field := range searchFields {
+			conditions = append(conditions, field+" ILIKE ?")
+			args = append(args, "%"+params.Search+"%")
+		}
+		if len(conditions) > 0 {
+			db = db.Where(strings.Join(conditions, " OR "), args...)
+		}
+	}
+
+	if len(params.Filters) > 0 {
+		for col, val := range params.Filters {
+			// bare "status" → "payments.status" (join + single-table দুটোতেই safe)
+			c := col
+			if !strings.Contains(c, ".") {
+				c = "payments." + c
+			}
+			db = db.Where(c+" = ?", val)
+		}
+	}
+	return db
+}
+
+func (r *repository) AggregateAllPayments(params query.Params) ([]PaymentAmountRow, error) {
+	var rows []PaymentAmountRow
+	db := r.db.Model(&Payment{}).
+		Select("payments.status as status, payments.currency as currency, COALESCE(SUM(payments.amount), 0) as total")
+	db = applyAggregateFilters(db, params, []string{"payments.transaction_id", "payments.status"})
+	err := db.Group("payments.status, payments.currency").Scan(&rows).Error
+	return rows, err
+}
+
+func (r *repository) AggregateManagerPayments(params query.Params, managerID uint) ([]PaymentAmountRow, error) {
+	var rows []PaymentAmountRow
+	db := r.db.Model(&Payment{}).
+		Select("payments.status as status, payments.currency as currency, COALESCE(SUM(payments.amount), 0) as total").
+		Joins("JOIN events ON events.id = payments.event_id").
+		Where("events.manager_id = ?", managerID)
+	db = applyAggregateFilters(db, params, []string{"payments.transaction_id", "payments.status"})
+	err := db.Group("payments.status, payments.currency").Scan(&rows).Error
+	return rows, err
+}
+
+func (r *repository) AggregateUserPayments(params query.Params, userID uint) ([]PaymentAmountRow, error) {
+	var rows []PaymentAmountRow
+	db := r.db.Model(&Payment{}).
+		Select("payments.status as status, payments.currency as currency, COALESCE(SUM(payments.amount), 0) as total").
+		Where("payments.user_id = ?", userID)
+	db = applyAggregateFilters(db, params, []string{"payments.transaction_id", "payments.status"})
+	err := db.Group("payments.status, payments.currency").Scan(&rows).Error
+	return rows, err
+}
+
+func (r *repository) CreateMethod(m *PaymentMethod) error {
+	return r.db.Create(m).Error
+}
+
+func (r *repository) UpdateMethod(m *PaymentMethod) error {
+	return r.db.Save(m).Error
+}
+
+func (r *repository) DeleteMethod(id uint) error {
+	res := r.db.Unscoped().Delete(&PaymentMethod{}, id)
+	if res.Error != nil {
+		return res.Error
+	}
+	if res.RowsAffected == 0 {
+		return ErrPaymentMethodNotFound
+	}
+	return nil
+}
+
+func (r *repository) GetMethodByID(id uint) (PaymentMethod, error) {
+	var m PaymentMethod
+	err := r.db.First(&m, id).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return PaymentMethod{}, ErrPaymentMethodNotFound
+	}
+	return m, err
+}
+
+func (r *repository) GetMethodByCode(code string) (PaymentMethod, error) {
+	var m PaymentMethod
+	err := r.db.Where("code = ?", code).First(&m).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return PaymentMethod{}, ErrPaymentMethodNotFound
+	}
+	return m, err
+}
+
+func (r *repository) ListMethods(p query.Params,enabledOnly bool) ([]PaymentMethod,int64, error) {
+	var list []PaymentMethod;
+	var total int64;
+    db := r.db.Model(&PaymentMethod{}).Where("enable = ?", true)
+	db = query.Apply(db, p, []string{"name","code","CAST(enable AS TEXT)"},nil,nil,nil,nil)
+	if err := db.Count(&total).Error; err != nil { return nil, 0, err }
+	db = query.Paginate(db, p)
+	if err := db.Find(&list).Error; err != nil { return nil, 0, err }
+	return list, total, nil
+}
+
+func (r *repository) ListMethodsAdmin(p query.Params) ([]PaymentMethod,int64, error) {
+	var list []PaymentMethod;
+	var total int64;
+    db := r.db.Model(&PaymentMethod{}).Where("enable = ?", true)
+	db = query.Apply(db, p,  []string{"name", "code","CAST(enable AS TEXT)"},nil,nil,nil,nil)
+	if err := db.Count(&total).Error; err != nil { return nil, 0, err }
+	db = query.Paginate(db, p)
+	if err := db.Find(&list).Error; err != nil { return nil, 0, err }
+	return list, total, nil
+}

@@ -1,0 +1,514 @@
+package user
+
+import (
+	"fmt"
+	"net/http"
+	"strconv"
+
+	"ticketBooking/internal/httpresponse"
+	"ticketBooking/internal/user/dto"
+	"ticketBooking/internal/utils/query"
+
+	"github.com/labstack/echo/v5"
+)
+
+type handler struct {
+	service *Service
+}
+
+func NewHandler(s *Service) *handler {
+	return &handler{
+		service: s,
+	}
+}
+
+func (h *handler) CreateUser(c *echo.Context) error {
+	var req dto.CreateRequest
+	if err := c.Bind(&req); err != nil {
+		return c.JSON(http.StatusBadRequest, httpresponse.Error{
+			Success: false, StatusCode: http.StatusBadRequest, Error: true,
+			ErrorMessage: "Invalid request body", ErrorDetails: err.Error(),
+		})
+	}
+	if err := c.Validate(&req); err != nil {
+		return c.JSON(http.StatusBadRequest, httpresponse.Error{
+			Success: false, StatusCode: http.StatusBadRequest, Error: true,
+			ErrorMessage: "Validation failed", ErrorDetails: err.Error(),
+		})
+	}
+
+	res, err := h.service.CreateUser(&req)
+	if err != nil {
+		return c.JSON(http.StatusBadRequest, httpresponse.Error{
+			Success: false, StatusCode: http.StatusBadRequest, Error: true,
+			ErrorMessage: err.Error(),
+		})
+	}
+
+	return c.JSON(http.StatusCreated, httpresponse.Success{
+		Success: true, StatusCode: http.StatusCreated,
+		Message: "User created successfully. Please verify OTP sent to your email.",
+		Data:    res,
+	})
+}
+
+func (h *handler) LoginUser(c *echo.Context) error {
+	var req dto.LoginRequest
+
+	// Bind
+	if err := c.Bind(&req); err != nil {
+		return c.JSON(http.StatusBadRequest, httpresponse.Error{
+			Success:      false,
+			StatusCode:   http.StatusBadRequest,
+			Error:        true,
+			ErrorMessage: "Invalid request body",
+			ErrorDetails: err.Error(),
+		})
+	}
+
+	// Validate
+	if err := c.Validate(&req); err != nil {
+		return c.JSON(http.StatusBadRequest, httpresponse.Error{
+			Success:      false,
+			StatusCode:   http.StatusBadRequest,
+			Error:        true,
+			ErrorMessage: "Validation failed",
+			ErrorDetails: err.Error(),
+		})
+	}
+
+	// Service call
+	res, err := h.service.LoginUser(&req)
+	if err != nil {
+		return c.JSON(http.StatusUnauthorized, httpresponse.Error{
+			Success:      false,
+			StatusCode:   http.StatusUnauthorized,
+			Error:        true,
+			ErrorMessage: "Invalid email or password",
+			ErrorDetails: err.Error(),
+		})
+	}
+
+	// Success
+	return c.JSON(http.StatusOK, httpresponse.Success{
+		Success:    true,
+		StatusCode: http.StatusOK,
+		Message:    "Login successful",
+		Data:       res,
+	})
+}
+
+
+func (h *handler) GetMe(c *echo.Context) error {
+
+	userId, ok := c.Get("user_id").(uint)
+	if !ok {
+		return c.JSON(http.StatusUnauthorized, httpresponse.Error{
+			Success:      false,
+			StatusCode:   http.StatusUnauthorized,
+			Error:        true,
+			ErrorMessage: "Unauthorized",
+			ErrorDetails: "Cannot get user information from authentication middleware",
+		})
+	}
+
+
+    
+	res,err := h.service.GetMe(userId)
+
+	if err != nil {
+		return c.JSON(http.StatusInternalServerError, httpresponse.Error{
+			Success:      false,
+			StatusCode:   http.StatusInternalServerError,
+			Error:        true,
+			ErrorMessage: "Failed to retrieve user information",
+			ErrorDetails: err.Error(),
+		})
+	}
+
+	return c.JSON(http.StatusOK, httpresponse.Success{
+		Success:    true,
+		StatusCode: http.StatusOK,
+		Message:    "User information retrieved successfully",
+		Data:       res,
+	})
+}
+
+func (h *handler) UpdateUser(c *echo.Context) error {
+
+	userId, ok := c.Get("user_id").(uint)
+	if !ok {
+		return c.JSON(http.StatusUnauthorized, httpresponse.Error{
+			Success:      false,
+			StatusCode:   http.StatusUnauthorized,
+			Error:        true,
+			ErrorMessage: "Unauthorized",
+			ErrorDetails: "Cannot get user ID from authentication middleware",
+		})
+	}
+
+	var req dto.UpdateRequest
+    
+	fmt.Println("var req dto.UpdateRequest ", req);
+
+
+	if err := c.Bind(&req); err != nil {
+		return c.JSON(http.StatusBadRequest, httpresponse.Error{
+			Success:      false,
+			StatusCode:   http.StatusBadRequest,
+			Error:        true,
+			ErrorMessage: "Invalid request body",
+			ErrorDetails: err.Error(),
+		})
+	}
+
+	if err := c.Validate(&req); err != nil {
+		return c.JSON(http.StatusBadRequest, httpresponse.Error{
+			Success:      false,
+			StatusCode:   http.StatusBadRequest,
+			Error:        true,
+			ErrorMessage: "Validation failed",
+			ErrorDetails: err.Error(),
+		})
+	}
+
+	res, err := h.service.UpdateUser(userId, &req)
+
+	if err != nil {
+		return c.JSON(http.StatusInternalServerError, httpresponse.Error{
+			Success:      false,
+			StatusCode:   http.StatusInternalServerError,
+			Error:        true,
+			ErrorMessage: "Failed to update user",
+			ErrorDetails: err.Error(),
+		})
+	}
+
+	return c.JSON(http.StatusOK, httpresponse.Success{
+		Success:    true,
+		StatusCode: http.StatusOK,
+		Message:    "User updated successfully",
+		Data:       res,
+	})
+}
+func (h *handler) UpdateMember(c *echo.Context) error {
+
+	id, err := strconv.ParseUint(c.Param("id"), 10, 64)
+
+	if err != nil {
+		return c.JSON(http.StatusBadRequest, httpresponse.Error{
+			Success:      false,
+			StatusCode:   http.StatusBadRequest,
+			Error:        true,
+			ErrorMessage: "Invalid user ID",
+			ErrorDetails: err.Error(),
+		})
+	}
+
+	var req dto.UpdateMemberRequest
+
+	if err := c.Bind(&req); err != nil {
+		return c.JSON(http.StatusBadRequest, httpresponse.Error{
+			Success:      false,
+			StatusCode:   http.StatusBadRequest,
+			Error:        true,
+			ErrorMessage: "Invalid request body",
+			ErrorDetails: err.Error(),
+		})
+	}
+
+	if err := c.Validate(&req); err != nil {
+		return c.JSON(http.StatusBadRequest, httpresponse.Error{
+			Success:      false,
+			StatusCode:   http.StatusBadRequest,
+			Error:        true,
+			ErrorMessage: "Validation failed",
+			ErrorDetails: err.Error(),
+		})
+	}
+
+	res, err := h.service.UpdateMember(uint(id), &req)
+
+	if err != nil {
+		return c.JSON(http.StatusInternalServerError, httpresponse.Error{
+			Success:      false,
+			StatusCode:   http.StatusInternalServerError,
+			Error:        true,
+			ErrorMessage: "Failed to update member",
+			ErrorDetails: err.Error(),
+		})
+	}
+
+	return c.JSON(http.StatusOK, httpresponse.Success{
+		Success:    true,
+		StatusCode: http.StatusOK,
+		Message:    "Member updated successfully",
+		Data:       res,
+	})
+}
+func (h *handler) DeleteUser(c *echo.Context) error {
+	userId, err := strconv.ParseUint(c.Param("id"), 10, 32)
+	if err != nil {
+		return c.JSON(http.StatusBadRequest, httpresponse.Error{
+			Success:      false,
+			StatusCode:   http.StatusBadRequest,
+			Error:        true,
+			ErrorMessage: "Invalid user ID",
+			ErrorDetails: err.Error(),
+		})
+	}
+
+	if err := h.service.DeleteUser(uint(userId)); err != nil {
+		return c.JSON(http.StatusInternalServerError, httpresponse.Error{
+			Success:      false,
+			StatusCode:   http.StatusInternalServerError,
+			Error:        true,
+			ErrorMessage: "Failed to delete user",
+			ErrorDetails: err.Error(),
+		})
+	}
+
+	return c.JSON(http.StatusOK, httpresponse.Success{
+		Success:    true,
+		StatusCode: http.StatusOK,
+		Message:    "User deleted successfully",
+	})
+
+
+}
+
+func (h *handler) VerifyOTP(c *echo.Context) error {
+	var req dto.VerifyOTPRequest
+	if err := c.Bind(&req); err != nil {
+		return c.JSON(http.StatusBadRequest, httpresponse.Error{
+			Success: false, StatusCode: http.StatusBadRequest, Error: true,
+			ErrorMessage: "Invalid request body", ErrorDetails: err.Error(),
+		})
+	}
+	if err := c.Validate(&req); err != nil {
+		return c.JSON(http.StatusBadRequest, httpresponse.Error{
+			Success: false, StatusCode: http.StatusBadRequest, Error: true,
+			ErrorMessage: "Validation failed", ErrorDetails: err.Error(),
+		})
+	}
+
+	if err := h.service.VerifyOTP(&req); err != nil {
+		return c.JSON(http.StatusBadRequest, httpresponse.Error{
+			Success: false, StatusCode: http.StatusBadRequest, Error: true,
+			ErrorMessage: err.Error(),
+		})
+	}
+
+	return c.JSON(http.StatusOK, httpresponse.Success{
+		Success: true, StatusCode: http.StatusOK,
+		Message: "OTP verified successfully",
+	})
+}
+
+func (h *handler) ForgotPassword(c *echo.Context) error {
+	var req dto.ForgotPasswordRequest
+	if err := c.Bind(&req); err != nil {
+		return c.JSON(http.StatusBadRequest, httpresponse.Error{
+			Success: false, StatusCode: http.StatusBadRequest, Error: true,
+			ErrorMessage: "Invalid request body", ErrorDetails: err.Error(),
+		})
+	}
+	if err := c.Validate(&req); err != nil {
+		return c.JSON(http.StatusBadRequest, httpresponse.Error{
+			Success: false, StatusCode: http.StatusBadRequest, Error: true,
+			ErrorMessage: "Validation failed", ErrorDetails: err.Error(),
+		})
+	}
+
+	if err := h.service.ForgotPassword(&req); err != nil {
+		return c.JSON(http.StatusBadRequest, httpresponse.Error{
+			Success: false, StatusCode: http.StatusBadRequest, Error: true,
+			ErrorMessage: err.Error(),
+		})
+	}
+
+	return c.JSON(http.StatusOK, httpresponse.Success{
+		Success: true, StatusCode: http.StatusOK,
+		Message: "If the email exists, an OTP has been sent",
+	})
+}
+
+func (h *handler) ResetPassword(c *echo.Context) error {
+	var req dto.ResetPasswordRequest
+	if err := c.Bind(&req); err != nil {
+		return c.JSON(http.StatusBadRequest, httpresponse.Error{
+			Success: false, StatusCode: http.StatusBadRequest, Error: true,
+			ErrorMessage: "Invalid request body", ErrorDetails: err.Error(),
+		})
+	}
+	if err := c.Validate(&req); err != nil {
+		return c.JSON(http.StatusBadRequest, httpresponse.Error{
+			Success: false, StatusCode: http.StatusBadRequest, Error: true,
+			ErrorMessage: "Validation failed", ErrorDetails: err.Error(),
+		})
+	}
+
+	if err := h.service.ResetPassword(&req); err != nil {
+		return c.JSON(http.StatusBadRequest, httpresponse.Error{
+			Success: false, StatusCode: http.StatusBadRequest, Error: true,
+			ErrorMessage: err.Error(),
+		})
+	}
+
+	return c.JSON(http.StatusOK, httpresponse.Success{
+		Success: true, StatusCode: http.StatusOK,
+		Message: "Password reset successfully",
+	})
+}
+
+func (h *handler) ResendOTP(c *echo.Context) error {
+	var req dto.ResendOTPRequest
+	if err := c.Bind(&req); err != nil {
+		return c.JSON(http.StatusBadRequest, httpresponse.Error{
+			Success: false, StatusCode: http.StatusBadRequest, Error: true,
+			ErrorMessage: "Invalid request body", ErrorDetails: err.Error(),
+		})
+	}
+	if err := c.Validate(&req); err != nil {
+		return c.JSON(http.StatusBadRequest, httpresponse.Error{
+			Success: false, StatusCode: http.StatusBadRequest, Error: true,
+			ErrorMessage: "Validation failed", ErrorDetails: err.Error(),
+		})
+	}
+
+	if err := h.service.ResendOTP(&req); err != nil {
+		return c.JSON(http.StatusBadRequest, httpresponse.Error{
+			Success: false, StatusCode: http.StatusBadRequest, Error: true,
+			ErrorMessage: err.Error(),
+		})
+	}
+
+	return c.JSON(http.StatusOK, httpresponse.Success{
+		Success: true, StatusCode: http.StatusOK,
+		Message: "OTP has been resent successfully",
+	})
+}
+
+func (h *handler) GetAllUsers(c *echo.Context) error {
+	params := query.Parse(c)
+    data, err := h.service.GetAllUsers(params)
+	if err != nil {
+		return c.JSON(http.StatusInternalServerError, httpresponse.Error{
+			Success: false, StatusCode: http.StatusInternalServerError, Error: true,
+			ErrorMessage: "Failed to fetch users", ErrorDetails: err.Error(),
+		})
+	}
+
+	return c.JSON(http.StatusOK, httpresponse.Success{
+		Success: true, StatusCode: http.StatusOK,
+		Message: "Users fetched successfully", Data: data,
+	})
+}
+
+func (h *handler) GetUserById(c *echo.Context) error {
+	userId, err := strconv.ParseUint(c.Param("id"), 10, 32)
+	if err != nil {
+		return c.JSON(http.StatusBadRequest, httpresponse.Error{
+			Success: false, StatusCode: http.StatusBadRequest, Error: true,
+			ErrorMessage: "Invalid user ID",
+		})
+	}
+
+	user, err := h.service.GetUserById(uint(userId))
+	if err != nil {
+		return c.JSON(http.StatusNotFound, httpresponse.Error{
+			Success: false, StatusCode: http.StatusNotFound, Error: true,
+			ErrorMessage: "User not found",
+		})
+	}
+
+	return c.JSON(http.StatusOK, httpresponse.Success{
+		Success: true, StatusCode: http.StatusOK,
+		Message: "User fetched successfully", Data: user,
+	})
+}
+
+
+func (h *handler) GetAllManager(c *echo.Context) error {
+	params := query.Parse(c)
+	params.Filters["role"] = "manager"
+    data, err := h.service.GetAllUsers(params)
+	if err != nil {
+		return c.JSON(http.StatusInternalServerError, httpresponse.Error{
+			Success: false, StatusCode: http.StatusInternalServerError, Error: true,
+			ErrorMessage: "Failed to fetch users", ErrorDetails: err.Error(),
+		})
+	}
+
+	return c.JSON(http.StatusOK, httpresponse.Success{
+		Success: true, StatusCode: http.StatusOK,
+		Message: "Users fetched successfully", Data: data,
+	})
+}
+
+func (h *handler) GetPublicManagers(c *echo.Context) error {
+	params := query.Parse(c)
+	params.Filters["role"] = "manager"
+	params.Filters["status"] = "active"
+	params.Filters["is_verified"] = true
+	data, err := h.service.GetAllUsers(params)
+	if err != nil {
+		return c.JSON(http.StatusInternalServerError, httpresponse.Error{Success: false, StatusCode: http.StatusInternalServerError, Error: true, ErrorMessage: "Failed to fetch managers", ErrorDetails: err.Error()})
+	}
+	return c.JSON(http.StatusOK, httpresponse.Success{Success: true, StatusCode: http.StatusOK, Message: "Managers fetched successfully", Data: data})
+}
+
+func (h *handler) GetPublicManagerById(c *echo.Context) error {
+	userId, err := strconv.ParseUint(c.Param("id"), 10, 32)
+	if err != nil {
+		return c.JSON(http.StatusBadRequest, httpresponse.Error{Success: false, StatusCode: http.StatusBadRequest, Error: true, ErrorMessage: "Invalid manager ID"})
+	}
+	user, err := h.service.GetPublicManagerById(uint(userId))
+	if err != nil {
+		return c.JSON(http.StatusNotFound, httpresponse.Error{Success: false, StatusCode: http.StatusNotFound, Error: true, ErrorMessage: "Manager not found"})
+	}
+	return c.JSON(http.StatusOK, httpresponse.Success{Success: true, StatusCode: http.StatusOK, Message: "Manager fetched successfully", Data: user})
+}
+
+
+func (h *handler) UpdatePassword(c *echo.Context) error {
+	userId, ok := c.Get("user_id").(uint)
+	if !ok {
+		return c.JSON(http.StatusUnauthorized, httpresponse.Error{
+			Success: false, StatusCode: http.StatusUnauthorized, Error: true,
+			ErrorMessage: "Unauthorized",
+			ErrorDetails: "Cannot get user ID from authentication middleware",
+		})
+	}
+
+	var req dto.UpdatePasswordRequest
+	if err := c.Bind(&req); err != nil {
+		return c.JSON(http.StatusBadRequest, httpresponse.Error{
+			Success: false, StatusCode: http.StatusBadRequest, Error: true,
+			ErrorMessage: "Invalid request body", ErrorDetails: err.Error(),
+		})
+	}
+	if err := c.Validate(&req); err != nil {
+		return c.JSON(http.StatusBadRequest, httpresponse.Error{
+			Success: false, StatusCode: http.StatusBadRequest, Error: true,
+			ErrorMessage: "Validation failed", ErrorDetails: err.Error(),
+		})
+	}
+
+	if err := h.service.UpdatePassword(userId, &req); err != nil {
+		status := http.StatusInternalServerError
+		switch err {
+		case ErrCurrentPasswordWrong, ErrSamePassword:
+			status = http.StatusBadRequest
+		case ErrUserNotFound:
+			status = http.StatusNotFound
+		}
+		return c.JSON(status, httpresponse.Error{
+			Success: false, StatusCode: status, Error: true, ErrorMessage: err.Error(),
+		})
+	}
+
+	return c.JSON(http.StatusOK, httpresponse.Success{
+		Success: true, StatusCode: http.StatusOK, Message: "Password updated successfully",
+	})
+}
