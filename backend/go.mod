@@ -1,6 +1,6 @@
 module ticketBooking
 
-go 1.26.2
+go 1.26.9
 
 require (
 	github.com/cloudinary/cloudinary-go/v2 v2.16.0
