@@ -1,0 +1,184 @@
+
+name: Ticket Booking CI/CD
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'backend/**'
+      - 'frontend/**'
+      - '.github/workflows/ci-cd.yml'
+
+  push:
+    branches: [main]
+    paths:
+      - 'backend/**'
+      - 'frontend/**'
+      - '.github/workflows/ci-cd.yml'
+
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ticket-booking-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # ==========================================
+  # BACKEND CI
+  # ==========================================
+
+  backend-ci:
+    name: Backend CI (Go)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: backend/go.mod
+          cache-dependency-path: backend/go.sum
+
+      - name: Download Go dependencies
+        working-directory: backend
+        run: go mod download
+
+      - name: Run Go tests
+        working-directory: backend
+        run: go test ./...
+
+      - name: Run Go vet
+        working-directory: backend
+        run: go vet ./...
+
+      - name: Audit Go dependencies
+        working-directory: backend
+        run: |
+          go install golang.org/x/vuln/cmd/govulncheck@latest
+          "$(go env GOPATH)/bin/govulncheck" ./...
+
+  # ==========================================
+  # FRONTEND CI (TEMPORARILY DISABLED)
+  # ==========================================
+
+  # frontend-ci:
+  #   name: Frontend CI (Next.js)
+  #   runs-on: ubuntu-latest
+  #   defaults:
+  #     run:
+  #       working-directory: frontend
+  #
+  #   steps:
+  #     - name: Checkout source
+  #       uses: actions/checkout@v4
+  #
+  #     - name: Set up Node.js
+  #       uses: actions/setup-node@v4
+  #       with:
+  #         node-version: '22'
+  #         cache: npm
+  #         cache-dependency-path: frontend/package-lock.json
+  #
+  #     - name: Install dependencies
+  #       run: npm ci
+  #
+  #     - name: Audit npm dependencies
+  #       run: npm audit --audit-level=high
+  #
+  #     - name: Run ESLint
+  #       run: npm run lint
+  #
+  #     - name: TypeScript type check
+  #       run: npx tsc --noEmit
+  #
+  #     - name: Build Next.js application
+  #       env:
+  #         NEXT_PUBLIC_API_URL: https://api.example.invalid/api/v1
+  #         NEXT_PUBLIC_WS_URL: wss://api.example.invalid/api/v1/messaging/ws
+  #         NEXT_PUBLIC_LIVE_WS_URL: wss://api.example.invalid/api/v1/live/events
+  #         NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY: pk_test_ci_placeholder
+  #       run: npm run build
+
+  # ==========================================
+  # BACKEND BUILD, PUSH, SCAN AND DEPLOY
+  # ==========================================
+
+  publish-scan-deploy:
+    name: Build, push, scan and deploy Backend
+    runs-on: ubuntu-latest
+
+    needs: [backend-ci]
+
+    if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Build and push backend image
+        uses: docker/build-push-action@v6
+        with:
+          context: ./backend
+          file: ./backend/dockerfile.prod
+          platforms: linux/amd64
+          push: true
+          tags: |
+            ${{ secrets.DOCKERHUB_USERNAME }}/ticket-booking-backend:${{ github.sha }}
+            ${{ secrets.DOCKERHUB_USERNAME }}/ticket-booking-backend:latest
+          cache-from: type=gha,scope=backend
+          cache-to: type=gha,mode=max,scope=backend
+
+      - name: Scan backend image with Trivy
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          image-ref: docker.io/${{ secrets.DOCKERHUB_USERNAME }}/ticket-booking-backend:${{ github.sha }}
+          format: table
+          vuln-type: os,library
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          exit-code: '1'
+
+      - name: Deploy backend image to Render
+        env:
+          RENDER_DEPLOY_HOOK: ${{ secrets.RENDER_BACKEND_DEPLOY_HOOK }}
+          DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+          IMAGE_TAG: ${{ github.sha }}
+
+        run: |
+          if [ -z "$RENDER_DEPLOY_HOOK" ]; then
+            echo "RENDER_BACKEND_DEPLOY_HOOK is not set; skipping initial Render deploy."
+            exit 0
+          fi
+
+          curl --fail --show-error --silent --get \
+            --data-urlencode "imgURL=docker.io/${DOCKERHUB_USERNAME}/ticket-booking-backend:${IMAGE_TAG}" \
+            "$RENDER_DEPLOY_HOOK"
+
+  # ==========================================
+  # FRONTEND BUILD, PUSH, SCAN AND DEPLOY
+  # TEMPORARILY DISABLED
+  # ==========================================
+
+  # frontend-publish-scan-deploy:
+  #   name: Build, push, scan and deploy Frontend
+  #   runs-on: ubuntu-latest
+  #   needs: [frontend-ci]
+  #
+  #   steps:
+  #     Frontend image build, Docker Hub push,
+  #     Trivy scan and Render deployment will
+  #     be enabled after Backend deployment.
