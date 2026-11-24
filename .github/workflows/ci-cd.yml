@@ -224,21 +224,28 @@ jobs:
           docker pull "$IMAGE"
 
           docker run --rm --entrypoint sh "$IMAGE" -c '
-            echo "===== Node and npm versions ====="
+            set -eu
+
+            echo "===== Node version ====="
             node --version
-            npm --version
 
-            echo "===== Global npm dependency tree ====="
-            npm ls -g brace-expansion ip-address pacote picomatch sigstore --all || true
+            echo "===== Verify npm removal ====="
+            if command -v npm >/dev/null 2>&1; then
+              echo "WARNING: npm is still installed"
+            else
+              echo "SUCCESS: npm is not installed"
+            fi
 
-            echo "===== Package locations ====="
-            find /app /usr/local/lib/node_modules/npm \
+            echo "===== Check vulnerable package locations ====="
+            find /app /usr/local/lib/node_modules \
               \( -path "*/brace-expansion/package.json" \
               -o -path "*/ip-address/package.json" \
               -o -path "*/pacote/package.json" \
               -o -path "*/picomatch/package.json" \
               -o -path "*/sigstore/package.json" \) \
-              -print 2>/dev/null
+              -print 2>/dev/null || true
+
+            echo "===== Inspection completed ====="
           '
 
       - name: Scan frontend image with Trivy
