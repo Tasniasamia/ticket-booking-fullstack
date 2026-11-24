@@ -18,26 +18,26 @@ services:
       - app_network
 
   # ==========================================
-  # FRONTEND (TEMPORARILY DISABLED)
+  # FRONTEND
   # ==========================================
 
-  # frontend:
-  #   build:
-  #     context: ./frontend
-  #     dockerfile: dockerfile
-  #   container_name: ticket_booking_frontend
-  #   restart: unless-stopped
-  #   expose:
-  #     - "3000"
-  #   env_file:
-  #     - ./frontend/.env.production
-  #   depends_on:
-  #     - backend
-  #   networks:
-  #     - app_network
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: dockerfile
+    container_name: ticket_booking_frontend
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    env_file:
+      - ./frontend/.env.local
+    depends_on:
+      - backend
+    networks:
+      - app_network
 
   # ==========================================
-  # NGINX (TEMPORARILY DISABLED)
+  # NGINX (DISABLED - ./nginx/default.conf not present)
   # ==========================================
 
   # nginx:

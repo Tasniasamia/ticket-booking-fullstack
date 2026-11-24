@@ -66,6 +66,11 @@ func Start(cfg config.Config, db *gorm.DB) {
 	RegisterAllRoutes(api, db, cfg, hub)
 
 	port := cfg.Port
+
+if port == "" {
+    port = "1323"
+}
+
 	// server listening
 	if err := e.Start(":" + port); err != nil {
 		e.Logger.Error("failed to start server", "error", err)
