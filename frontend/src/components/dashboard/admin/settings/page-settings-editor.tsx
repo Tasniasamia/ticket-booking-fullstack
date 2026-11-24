@@ -22,7 +22,7 @@ import {
   type ImageItem,
   type SavedImage,
 } from "@/features/media/deferred";
-
+import type { FormEventHandler } from "react";
 const FALLBACK_LANGS: LangOption[] = [{ code: "en", name: "English" }, { code: "bn", name: "বাংলা" }];
 const card = "space-y-5 rounded-3xl border border-fg/15 bg-panel/40 p-5 sm:p-6";
 
@@ -212,10 +212,14 @@ function PageForm({ def, content, languages }: { def: PageDef; content: PageCont
       toast.error(err instanceof Error && err.message ? err.message : "Something went wrong. Please try again.");
     }
   };
-
+  const handleFormSubmit: FormEventHandler<HTMLFormElement> = (event) => {
+    void form.handleSubmit(onSubmit)(event);
+  };
   return (
     <FormProvider {...form}>
-      <form onSubmit={form.handleSubmit(onSubmit)} noValidate className="space-y-6">
+      <form onSubmit={handleFormSubmit}
+        noValidate
+        className="space-y-6">
         <p className="text-sm text-fg/60">{def.description} Leave a field empty to keep the default text.</p>
         {def.sections.map((s) => (
           <section key={s.key} className={card}>

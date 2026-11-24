@@ -37,22 +37,34 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
 
   //race condition atkate ami alive use koreci
 
-  useEffect(() => {
-    let alive = true;
+useEffect(() => {
+  let alive = true;
 
-    // ব্রাউজারে সেশন ফ্ল্যাগ না থাকলে ইউজার লগআউট অবস্থায় আছে — বাড়তি নেটওয়ার্ক কল বন্ধ
-    if (typeof document !== "undefined" && !document.cookie.includes(`${SESSION_FLAG_COOKIE}=1`)) {
-      setState({ user: null, status: "unauthenticated" });
-      return;
+  const initializeUser = async () => {
+    const hasSession =
+      typeof document !== "undefined" &&
+      document.cookie.includes(`${SESSION_FLAG_COOKIE}=1`);
+
+    // Session না থাকলে API request হবে না।
+    // await থাকার কারণে state update synchronous effect update হবে না।
+    const user = hasSession
+      ? await fetchMe()
+      : await Promise.resolve(null);
+
+    if (alive) {
+      setState({
+        user,
+        status: user ? "authenticated" : "unauthenticated",
+      });
     }
+  };
 
-    fetchMe().then((user) => {
-      if (alive) setState({ user, status: user ? "authenticated" : "unauthenticated" });
-    });
-    return () => {
-      alive = false;
-    };
-  }, []);
+  void initializeUser();
+
+  return () => {
+    alive = false;
+  };
+}, []);
 
   const value = useMemo<UserContext>(
     () => ({
