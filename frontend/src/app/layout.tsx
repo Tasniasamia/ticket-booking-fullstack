@@ -5,6 +5,7 @@ import { ThemeProvider } from "@/providers/theme-provider";
 import { UserProvider } from "@/providers/user-provider";
 import { PreferencesProvider } from "@/providers/preferences-provider";
 import { ToastContainer } from "react-toastify";
+import type { ReactNode } from "react";
 
 const jakarta = Plus_Jakarta_Sans({
   variable: "--font-jakarta",
@@ -18,7 +19,12 @@ export const metadata: Metadata = {
     "Concerts, festivals and club nights. Book tickets in a few taps.",
 };
 
-export default function RootLayout({ children }: LayoutProps<"/">) {
+
+export default function RootLayout({
+  children,
+}: {
+  children: ReactNode;
+}) {
   return (
     <html
       lang="en"
