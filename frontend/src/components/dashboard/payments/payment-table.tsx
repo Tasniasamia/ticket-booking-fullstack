@@ -121,7 +121,7 @@ export function PaymentTable({
     {
       key: "created",
       header: "Created",
-      cell: (p) => <LocalTime iso={p.createdAt} format="DD MMM YYYY" />,
+      cell: (p) => <LocalTime iso={p.createdAt} format="DD MMM YYYY, hh:mm A" />,
     },
   );
 
