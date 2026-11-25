@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useState, useTransition, type ReactNode } from "react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Eye, Loader2, Pencil, Search, Trash2, type LucideIcon } from "lucide-react";
@@ -73,6 +73,7 @@ export function DataTable<T>({ columns, data, meta, rowKey, actions, filters = [
   const [text, setText] = useState(urlSearch);
   const [deletingId, setDeletingId] = useState<string | number | null>(null);
   const [open, setOpen] = useState<{ row: T; action: RowAction<T> } | null>(null);
+  const [isPending, startTransition] = useTransition();
 
   /** URL ই table এর state (page, search, filter)। refresh/back/share সব কাজ করে। */
   const update = (patch: Record<string, string | number | undefined>) => {
@@ -83,7 +84,9 @@ export function DataTable<T>({ columns, data, meta, rowKey, actions, filters = [
     }
     if (!("page" in patch)) q.delete("page");
     const qs = q.toString();
-    router.push(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
+    startTransition(() => {
+      router.push(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
+    });
   };
 
   // টাইপ থামার ৪০০ms পর search হয়
@@ -117,7 +120,7 @@ export function DataTable<T>({ columns, data, meta, rowKey, actions, filters = [
   const title = open?.action.dialog ? (typeof open.action.dialog.title === "function" ? open.action.dialog.title(open.row) : open.action.dialog.title) : "";
 
   return (
-    <div className="space-y-4">
+    <div className={cn("space-y-4 transition-opacity duration-200", isPending && "opacity-60")}>
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
         <label className={cn(tableTheme.control, "flex min-w-0 flex-1 items-center gap-3 sm:max-w-sm")}>
           <Search className="size-4.5 shrink-0 text-fg/55" />
@@ -174,7 +177,7 @@ export function DataTable<T>({ columns, data, meta, rowKey, actions, filters = [
             )}
           </TableBody>
         </Table>
-        {meta.totalDocs > 0 && <TablePagination meta={meta} onPage={(page) => update({ page })} />}
+        {meta.totalDocs > 0 && <TablePagination meta={meta} isPending={isPending} onPage={(page) => update({ page })} />}
       </div>
 
       <Modal open={!!open} onClose={() => setOpen(null)} customWidth={open?.action.dialog?.customWidth} title={title}>

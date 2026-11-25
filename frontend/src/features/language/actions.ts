@@ -23,16 +23,20 @@ export type LanguageResult = {
   language?: string;
 };
 
-export async function getLanguagesAction(): Promise<LanguageResult> {
+async function fetchLanguages(): Promise<Language[]> {
   "use cache";
   cacheTag("languages");
   cacheLife("minutes");
+  const res = await getLanguagesRequest();
+  return res.data.data.docs
+    .map(toLanguage)
+    .filter((l) => l.isActive)
+    .sort((a, b) => Number(b.isDefault) - Number(a.isDefault) || a.code.localeCompare(b.code));
+}
+
+export async function getLanguagesAction(): Promise<LanguageResult> {
   try {
-    const res = await getLanguagesRequest();
-    const languages = res.data.data.docs
-      .map(toLanguage)
-      .filter((l) => l.isActive)
-      .sort((a, b) => Number(b.isDefault) - Number(a.isDefault) || a.code.localeCompare(b.code));
+    const languages = await fetchLanguages();
     return { success: true, languages };
   } catch (err) {
     return { success: false, message: getErrorMessage(err) };

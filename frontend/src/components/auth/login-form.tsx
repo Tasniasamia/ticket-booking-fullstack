@@ -27,15 +27,16 @@ export function LoginForm() {
     if (res.success && !res.user?.is_verified) {
       startOtpCooldown(values.email, "register", 120, true);
       form.reset();
+      window.scrollTo({ top: 0, left: 0, behavior: "instant" });
       router.push(res.redirectTo ?? "/");
       return;
     }
     else if (res.success && res.user?.is_verified) {
-      await refresh(); // cookie বসে গেছে, এবার /auth/me দিয়ে profile এনে header এ দেখাই
+      await refresh(); // cookie বসে গেছে, এবার /auth/me দিয়ে profile এনে header এ দেখai
       toast.success(res.message ?? "Logged in successfully!");
       form.reset();
+      window.scrollTo({ top: 0, left: 0, behavior: "instant" });
       router.push(res.redirectTo ?? "/");
-      form.reset();
       return;
     }
 

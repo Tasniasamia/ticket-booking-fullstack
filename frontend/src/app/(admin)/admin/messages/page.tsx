@@ -11,7 +11,7 @@ export default function AdminMessagesPage() {
         title="Messages"
         subtitle="Message any user. Start a chat by entering their user ID, or open an existing conversation."
       />
-      <MessagesPanel allowStartById />
+      <MessagesPanel allowStartById className="h-[calc(100dvh-14.5rem)] min-h-[26rem]" />
     </div>
   );
 }

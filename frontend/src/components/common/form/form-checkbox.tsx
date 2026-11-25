@@ -50,11 +50,11 @@ export function FormCheckbox({ name, value, label, children }: Props) {
           checked={checked}
           onChange={handleChange}
           onBlur={onBlur}
-          className="mt-0.5 size-5 shrink-0 accent-magenta"
+          className="mt-0.5 size-5 shrink-0 accent-magenta cursor-pointer"
           aria-invalid={!!error}
           aria-describedby={error ? `${name}-error` : undefined}
         />
-        <span>{children ?? label}</span>
+        <span className="cursor-pointer">{children ?? label}</span>
       </label>
       {/* একটাই checkbox হলে error এখানেই, group এ FormError ব্যবহার করুন */}
       {!isGroup && error && <p id={`${name}-error`} role="alert" className="mt-1.5 text-sm text-red-500">{error}</p>}

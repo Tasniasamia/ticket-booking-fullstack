@@ -1,21 +1,24 @@
 "use client";
 
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import { ChevronLeft, ChevronRight, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { PaginationMeta } from "./table-params";
 import { tableTheme } from "./table-theme";
 import { getPageList } from "@/components/common/pagination/page-list";
 
-export function TablePagination({ meta, onPage }: { meta: PaginationMeta; onPage: (page: number) => void }) {
+export function TablePagination({ meta, isPending, onPage }: { meta: PaginationMeta; isPending?: boolean; onPage: (page: number) => void }) {
   const { page, limit, totalDocs, totalPages, hasPrevPage, hasNextPage } = meta;
   const from = (page - 1) * limit + 1;
   const to = Math.min(page * limit, totalDocs);
 
   return (
     <div className={cn("flex flex-col gap-3 border-t px-4 py-4 sm:flex-row sm:items-center sm:justify-between", tableTheme.divider)}>
-      <p className={cn("text-sm", tableTheme.muted)}>
-        Showing <b className="text-fg">{from}–{to}</b> of <b className="text-fg">{totalDocs}</b>
-      </p>
+      <div className="flex items-center gap-2">
+        <p className={cn("text-sm", tableTheme.muted)}>
+          Showing <b className="text-fg">{from}–{to}</b> of <b className="text-fg">{totalDocs}</b>
+        </p>
+        {isPending && <Loader2 className="size-3.5 animate-spin text-coral" />}
+      </div>
 
       {totalPages > 1 && (
         <nav aria-label="pagination" className="flex items-center gap-1">

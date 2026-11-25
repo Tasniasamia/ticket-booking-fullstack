@@ -18,16 +18,20 @@ export type CurrencyResult = {
   result?: number;
 };
 
-export async function getCurrenciesAction(): Promise<CurrencyResult> {
+async function fetchCurrencies(): Promise<Currency[]> {
   "use cache";
   cacheTag("currencies");
   cacheLife("minutes");
+  const res = await getCurrenciesRequest();
+  return res.data.data.docs
+    .map(toCurrency)
+    .filter((c) => c.status === "enable") // disable করা currency user কে দেখাই না
+    .sort((a, b) => Number(b.isDefault) - Number(a.isDefault) || a.code.localeCompare(b.code)); // default সবার আগে
+}
+
+export async function getCurrenciesAction(): Promise<CurrencyResult> {
   try {
-    const res = await getCurrenciesRequest();
-    const currencies = res.data.data.docs
-      .map(toCurrency)
-      .filter((c) => c.status === "enable") // disable করা currency user কে দেখাই না
-      .sort((a, b) => Number(b.isDefault) - Number(a.isDefault) || a.code.localeCompare(b.code)); // default সবার আগে
+    const currencies = await fetchCurrencies();
     return { success: true, currencies };
   } catch (err) {
     return { success: false, message: getErrorMessage(err) };

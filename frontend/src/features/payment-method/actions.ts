@@ -74,17 +74,21 @@ export async function updatePaymentMethodAction(id: string | number, input: Paym
   }
 }
 
+async function fetchPublicPaymentMethods(): Promise<PublicPaymentMethod[]> {
+  "use cache";
+  cacheTag("payment-methods");
+  cacheLife("minutes");
+  const res = await listPublicPaymentMethodsRequest();
+  return res.data.data.docs
+    .filter((d) => d.enable !== false)
+    .map(toPublicPaymentMethod)
+    .filter((m) => CHECKOUT_CODES.includes(m.code));
+}
+
 /** Booking panel এর জন্য: enabled আর checkout সমর্থিত method, credentials ছাড়া। */
 export async function getPaymentMethodsAction(): Promise<{ success: boolean; message?: string; methods: PublicPaymentMethod[] }> {
   try {
-    const res = await listPublicPaymentMethodsRequest();
-    "use cache"
-    cacheTag("payment-methods")
-    cacheLife("minutes");
-    const methods = res.data.data.docs
-      .filter((d) => d.enable !== false)
-      .map(toPublicPaymentMethod)
-      .filter((m) => CHECKOUT_CODES.includes(m.code));
+    const methods = await fetchPublicPaymentMethods();
     return { success: true, methods };
   } catch (err) {
     return { success: false, message: getErrorMessage(err), methods: [] };

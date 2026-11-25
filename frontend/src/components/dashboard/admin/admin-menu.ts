@@ -81,8 +81,8 @@ export const ADMIN_MENU: AdminMenuGroup[] = [
         label: "Payments",
         href: "/admin/payments",
         icon: Wallet,
-        title: "Payments",
-        subtitle: "Payments, refunds and payouts to managers.",
+        title: "Payment",
+        subtitle:"Pay refunds and payouts to managements,"
       },
       {
         label: "Messages",
@@ -167,7 +167,7 @@ export const ADMIN_MENU: AdminMenuGroup[] = [
         subtitle: "Manage the translations for your platform.",
       },
       {
-        label: "Payments",
+        label: "Payment Methods",
         href: "/admin/payment-methods",
         icon: Wallet,
         title: "Payments",

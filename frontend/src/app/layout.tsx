@@ -5,6 +5,7 @@ import { ThemeProvider } from "@/providers/theme-provider";
 import { UserProvider } from "@/providers/user-provider";
 import { PreferencesProvider } from "@/providers/preferences-provider";
 import { ToastContainer } from "react-toastify";
+import { ScrollToTop } from "@/components/shared/scroll-to-top";
 import type { ReactNode } from "react";
 
 const jakarta = Plus_Jakarta_Sans({
@@ -37,7 +38,10 @@ export default function RootLayout({
       >
         <ThemeProvider>
           <UserProvider>
-            <PreferencesProvider>{children}</PreferencesProvider>
+            <PreferencesProvider>
+              <ScrollToTop />
+              {children}
+            </PreferencesProvider>
           </UserProvider>
         </ThemeProvider>
         <ToastContainer />
