@@ -30,11 +30,11 @@ export default function RootLayout({
     <html
       lang="en"
       suppressHydrationWarning
-      className={`${jakarta.variable} dark h-full antialiased`}
+      className={`${jakarta.variable} dark h-full antialiased pretty-scroll`}
     >
       <body
         suppressHydrationWarning
-        className="flex min-h-full flex-col bg-bg text-fg"
+        className="flex min-h-full flex-col bg-bg text-fg pretty-scroll"
       >
         <ThemeProvider>
           <UserProvider>

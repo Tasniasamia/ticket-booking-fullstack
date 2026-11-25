@@ -1,7 +1,10 @@
 package language
 
 import (
+	"context"
 	"errors"
+	"time"
+	"ticketBooking/internal/cache"
 	"ticketBooking/internal/httpresponse"
 	"ticketBooking/internal/language/dto"
 	"ticketBooking/internal/translation"
@@ -45,23 +48,35 @@ func (s *Service) Create(req *dto.CreateRequest) (*dto.Response, error) {
 		return nil, err
 	}
 
+	_ = cache.Get().DeleteByPrefix(context.Background(), "languages:")
+
 	return toResponse(lang), nil
 }
 
 func (s *Service) GetAll(params query.Params, lang string) (*httpresponse.PaginatedData, error) {
-		list, total, err := s.repo.GetAll(params)
+	cacheKey := cache.GenerateKey("languages:all", params.Page, params.Limit, params.Search, params.SortBy, params.SortDir)
+	var cachedData httpresponse.PaginatedData
+	if found, _ := cache.Get().Get(context.Background(), cacheKey, &cachedData); found {
+		return &cachedData, nil
+	}
+
+	list, total, err := s.repo.GetAll(params)
 	if err != nil {
 		return nil, err
 	}
-   docs := make([]*dto.Response, 0, len(list))
-      for _, l := range list {
+	docs := make([]*dto.Response, 0, len(list))
+	for _, l := range list {
 		docs = append(docs, toResponse(l))
 	}
 	meta := httpresponse.BuildPaginationMeta(total, params.Page, params.Limit)
-	return &httpresponse.PaginatedData{
+	result := &httpresponse.PaginatedData{
 		Docs:           docs,
 		PaginationMeta: meta,
-	}, nil
+	}
+
+	_ = cache.Get().Set(context.Background(), cacheKey, result, 1*time.Hour)
+
+	return result, nil
 }
 
 
@@ -103,6 +118,7 @@ func (s *Service) Update(id uint, req *dto.UpdateRequest) (*dto.Response, error)
 	if err := s.repo.Update(lang); err != nil {
 		return nil, err
 	}
+	_ = cache.Get().DeleteByPrefix(context.Background(), "languages:")
 	return toResponse(lang), nil
 }
 
@@ -122,7 +138,11 @@ func (s *Service) Delete(id uint) error {
 		}
 	}
 
-	return s.repo.Delete(id)
+	if err := s.repo.Delete(id); err != nil {
+		return err
+	}
+	_ = cache.Get().DeleteByPrefix(context.Background(), "languages:")
+	return nil
 }
 
 func toResponse(l *Language) *dto.Response {
@@ -161,5 +181,6 @@ func (s *Service) SetDefault(code string) (*dto.Response, error) {
 	if err := s.repo.Update(lang); err != nil {
 		return nil, err
 	}
+	_ = cache.Get().DeleteByPrefix(context.Background(), "languages:")
 	return toResponse(lang), nil
 }

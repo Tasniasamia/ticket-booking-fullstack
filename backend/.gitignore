@@ -1,2 +1,19 @@
+# Binaries and build artifacts
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+bin/
+dist/
+tmp/
+gocache/
+
+# Environment files
 .env
 .env.*
+!.env.example
+
+# Test outputs
+*.test
+*.out

@@ -1,11 +1,10 @@
 package payment
 
 import (
+	"context"
 	"errors"
-	// "strings"
-	// "ticketBooking/internal/utils/query"
-"strings"
-	// ... তোমার অন্য imports
+	"strings"
+	"ticketBooking/internal/cache"
 	"ticketBooking/internal/utils/query"
 
 	"gorm.io/gorm"
@@ -94,8 +93,21 @@ func qualifyPaymentParams(p query.Params) query.Params {
 	}
 	return out
 }
-func (r *repository) Create(p *Payment) error { return r.db.Create(p).Error }
-func (r *repository) Update(p *Payment) error { return r.db.Save(p).Error }
+func (r *repository) Create(p *Payment) error {
+	err := r.db.Create(p).Error
+	if err == nil {
+		_ = cache.Get().DeleteByPrefix(context.Background(), "payments:")
+	}
+	return err
+}
+
+func (r *repository) Update(p *Payment) error {
+	err := r.db.Save(p).Error
+	if err == nil {
+		_ = cache.Get().DeleteByPrefix(context.Background(), "payments:")
+	}
+	return err
+}
 
 func (r *repository) GetByID(id uint) (*Payment, error) {
 	var p Payment

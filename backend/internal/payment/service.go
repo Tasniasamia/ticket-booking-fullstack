@@ -1,6 +1,7 @@
 package payment
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -10,6 +11,7 @@ import (
 
 	"ticketBooking/internal/booking"
 	bookingdto "ticketBooking/internal/booking/dto"
+	"ticketBooking/internal/cache"
 	"ticketBooking/internal/currency"
 	"ticketBooking/internal/event"
 	"ticketBooking/internal/httpresponse"
@@ -722,6 +724,12 @@ func emptyAggParams() query.Params {
 }
 
 func (s *service) GetAllPayments(params query.Params, lang string) (*PaymentsListData, error) {
+	cacheKey := cache.GenerateKey("payments:admin:all", lang, params.Page, params.Limit, params.Search, params.SortBy, params.SortDir, params.Filters["status"])
+	var cached PaymentsListData
+	if found, _ := cache.Get().Get(context.Background(), cacheKey, &cached); found {
+		return &cached, nil
+	}
+
 	events, total, err := s.paymentRepo.GetAllPayments(params, lang)
 	if err != nil {
 		return nil, err
@@ -740,16 +748,24 @@ func (s *service) GetAllPayments(params query.Params, lang string) (*PaymentsLis
 	summary := s.buildPaymentSummary(rows)
 
 	meta := httpresponse.BuildPaginationMeta(total, params.Page, params.Limit)
-	return &PaymentsListData{
+	result := &PaymentsListData{
 		PaginatedData: &httpresponse.PaginatedData{
 			Docs:           docs,
 			PaginationMeta: meta,
 		},
 		Payment: summary,
-	}, nil
+	}
+	_ = cache.Get().Set(context.Background(), cacheKey, result, 5*time.Minute)
+	return result, nil
 }
 
 func (s *service) GetManagerPayments(params query.Params, managerID uint, lang string) (*PaymentsListData, error) {
+	cacheKey := cache.GenerateKey("payments:manager", managerID, lang, params.Page, params.Limit, params.Search, params.SortBy, params.SortDir, params.Filters["status"])
+	var cached PaymentsListData
+	if found, _ := cache.Get().Get(context.Background(), cacheKey, &cached); found {
+		return &cached, nil
+	}
+
 	events, total, err := s.paymentRepo.GetManagerPayments(params, managerID, lang)
 	if err != nil {
 		return nil, err
@@ -767,13 +783,15 @@ func (s *service) GetManagerPayments(params query.Params, managerID uint, lang s
 	summary := s.buildPaymentSummary(rows)
 
 	meta := httpresponse.BuildPaginationMeta(total, params.Page, params.Limit)
-	return &PaymentsListData{
+	result := &PaymentsListData{
 		PaginatedData: &httpresponse.PaginatedData{
 			Docs:           docs,
 			PaginationMeta: meta,
 		},
 		Payment: summary,
-	}, nil
+	}
+	_ = cache.Get().Set(context.Background(), cacheKey, result, 5*time.Minute)
+	return result, nil
 }
 
 func (s *service) GetUserPayments(params query.Params, userID uint, lang string) (*PaymentsListData, error) {

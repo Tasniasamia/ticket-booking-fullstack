@@ -83,7 +83,7 @@ export function AdminSidebar({
           </button>
         </div>
 
-        <nav aria-label="Admin" className="flex-1 overflow-y-auto px-3 py-4">
+        <nav aria-label="Admin" className="pretty-scroll flex-1 overflow-y-auto px-3 py-4">
           {ADMIN_MENU.map((group, gi) => (
             <div
               key={group.label ?? gi}
