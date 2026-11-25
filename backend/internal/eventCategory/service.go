@@ -1,6 +1,9 @@
 package eventCategory;
 
 import (
+	"context"
+	"time"
+	"ticketBooking/internal/cache"
 	"ticketBooking/internal/eventCategory/dto"
 	"ticketBooking/internal/httpresponse"
 	"ticketBooking/internal/utils/i18n"
@@ -27,6 +30,7 @@ func (s *Service) CreateEventCategory(req *dto.CreateEventCategoryRequest) (*dto
 	if err := s.repo.Create(eventCategory); err != nil {
 		return nil, err
 	}
+	_ = cache.Get().DeleteByPrefix(context.Background(), "categories:")
 	return eventCategory.ToRawResponse(), nil
 }
 
@@ -35,6 +39,12 @@ func (s *Service) GetAllEventCategories(params query.Params, lang string) (*http
 	searchLang := lang
 	if searchLang == "" {
 		searchLang = "en"
+	}
+
+	cacheKey := cache.GenerateKey("categories:all", lang, searchLang, params.Page, params.Limit, params.Search, params.SortBy, params.SortDir)
+	var cachedData httpresponse.PaginatedData
+	if found, _ := cache.Get().Get(context.Background(), cacheKey, &cachedData); found {
+		return &cachedData, nil
 	}
 
 	eventCategories, total, err := s.repo.GetAll(params, searchLang)
@@ -52,18 +62,31 @@ func (s *Service) GetAllEventCategories(params query.Params, lang string) (*http
 	}
 
 	meta := httpresponse.BuildPaginationMeta(total, params.Page, params.Limit)
-	return &httpresponse.PaginatedData{Docs: docs, PaginationMeta: meta}, nil
+	result := &httpresponse.PaginatedData{Docs: docs, PaginationMeta: meta}
+	_ = cache.Get().Set(context.Background(), cacheKey, result, 30*time.Minute)
+	return result, nil
 }
 
 func (s *Service) GetEventCategoryByID(eventId uint, lang string) (any, error) {
+	cacheKey := cache.GenerateKey("categories:detail", eventId, lang)
+	var cachedDoc any
+	if found, _ := cache.Get().Get(context.Background(), cacheKey, &cachedDoc); found {
+		return cachedDoc, nil
+	}
+
 	eventCategory, err := s.repo.GetByID(eventId)
 	if err != nil {
 		return nil, err
 	}
+	var res any
 	if lang == "" {
-		return eventCategory.ToRawResponse(), nil
+		res = eventCategory.ToRawResponse()
+	} else {
+		res = eventCategory.ToResponse(lang)
 	}
-	return eventCategory.ToResponse(lang), nil
+
+	_ = cache.Get().Set(context.Background(), cacheKey, res, 30*time.Minute)
+	return res, nil
 }
 
 func (s *Service) UpdateEventCategory(eventId uint, req *dto.UpdateEventCategoryRequest) (*dto.RawResponse, error) {
@@ -81,9 +104,14 @@ func (s *Service) UpdateEventCategory(eventId uint, req *dto.UpdateEventCategory
 		return nil, err
 	}
 
+	_ = cache.Get().DeleteByPrefix(context.Background(), "categories:")
 	return eventCategory.ToRawResponse(), nil
 }
 
 func (s *Service) DeleteEventCategory(eventId uint) error {
-	return s.repo.Delete(eventId)
+	if err := s.repo.Delete(eventId); err != nil {
+		return err
+	}
+	_ = cache.Get().DeleteByPrefix(context.Background(), "categories:")
+	return nil
 }

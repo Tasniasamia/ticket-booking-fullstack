@@ -134,8 +134,11 @@
 package event
 
 import (
+	"context"
 	"errors"
 	"strings"
+	"time"
+	"ticketBooking/internal/cache"
 	"ticketBooking/internal/event/dto"
 	"ticketBooking/internal/httpresponse"
 	"ticketBooking/internal/user"
@@ -188,10 +191,17 @@ func (s *Service) CreateEvent(req *dto.CreateRequest, managerID uint) (*dto.RawR
 	if err := s.repo.Create(event); err != nil {
 		return nil, err
 	}
+	_ = cache.Get().DeleteByPrefix(context.Background(), "events:")
 	return event.ToRawResponse(), nil
 }
 
 func (s *Service) GetAllEvents(params query.Params, lang string) (*httpresponse.PaginatedData, error) {
+	cacheKey := cache.GenerateKey("events:all", lang, params.Page, params.Limit, params.Search, params.SortBy, params.SortDir)
+	var cachedData httpresponse.PaginatedData
+	if found, _ := cache.Get().Get(context.Background(), cacheKey, &cachedData); found {
+		return &cachedData, nil
+	}
+
 	events, total, err := s.repo.GetAll(params, lang)
 	if err != nil {
 		return nil, err
@@ -203,19 +213,30 @@ func (s *Service) GetAllEvents(params query.Params, lang string) (*httpresponse.
 	}
 
 	meta := httpresponse.BuildPaginationMeta(total, params.Page, params.Limit)
-	return &httpresponse.PaginatedData{
+	result := &httpresponse.PaginatedData{
 		Docs:           docs,
 		PaginationMeta: meta,
-	}, nil
+	}
+
+	_ = cache.Get().Set(context.Background(), cacheKey, result, 10*time.Minute)
+	return result, nil
 }
 
 // Public: শুধু approved event।
 func (s *Service) GetEventByID(eventId uint, lang string) (*dto.RawResponse, error) {
+	cacheKey := cache.GenerateKey("events:detail", eventId, lang)
+	var cached dto.RawResponse
+	if found, _ := cache.Get().Get(context.Background(), cacheKey, &cached); found {
+		return &cached, nil
+	}
+
 	event, err := s.repo.GetByID(eventId)
 	if err != nil {
 		return nil, err
 	}
-	return event.ToRawResponse(), nil
+	resp := event.ToRawResponse()
+	_ = cache.Get().Set(context.Background(), cacheKey, resp, 15*time.Minute)
+	return resp, nil
 }
 
 // Admin: যেকোনো status এর event।
@@ -259,6 +280,7 @@ func (s *Service) UpdateEvent(eventId uint, req *dto.UpdateRequest, actorID uint
 	if err := s.repo.Update(event); err != nil {
 		return nil, err
 	}
+	_ = cache.Get().DeleteByPrefix(context.Background(), "events:")
 
 	// নতুন category সহ ফেরত দিতে আবার আনি
 	fresh, err := s.repo.GetByIDAdmin(eventId)
@@ -276,7 +298,11 @@ func (s *Service) DeleteEvent(eventId uint, actorID uint, actorRole string) erro
 	if !owns(event, actorID, actorRole) {
 		return ErrForbidden
 	}
-	return s.repo.Delete(event)
+	if err := s.repo.Delete(event); err != nil {
+		return err
+	}
+	_ = cache.Get().DeleteByPrefix(context.Background(), "events:")
+	return nil
 }
 
 // UpdateEventStatus: শুধু admin (route এ AdminMiddleware)। GetByID এখানে চলবে না,
@@ -288,11 +314,21 @@ func (s *Service) UpdateEventStatus(req *dto.UpdateEventStatusRequest) error {
 	}
 
 	event.Status = req.Status
-	return s.repo.Update(event)
+	if err := s.repo.Update(event); err != nil {
+		return err
+	}
+	_ = cache.Get().DeleteByPrefix(context.Background(), "events:")
+	return nil
 }
 
 
 func (s *Service) GetUpcomingEvents(limit int) ([]*dto.RawResponse, error) {
+	cacheKey := cache.GenerateKey("events:upcoming", limit)
+	var cachedDocs []*dto.RawResponse
+	if found, _ := cache.Get().Get(context.Background(), cacheKey, &cachedDocs); found {
+		return cachedDocs, nil
+	}
+
 	events, err := s.repo.GetUpcoming(limit)
 	if err != nil {
 		return nil, err
@@ -301,5 +337,6 @@ func (s *Service) GetUpcomingEvents(limit int) ([]*dto.RawResponse, error) {
 	for _, e := range events {
 		docs = append(docs, e.ToRawResponse())
 	}
+	_ = cache.Get().Set(context.Background(), cacheKey, docs, 10*time.Minute)
 	return docs, nil
 }

@@ -21,7 +21,8 @@ type Config struct {
 	SMTPPassword    string
 	ResendAPIKey    string
 	ResendFromEmail string
-	
+	RedisURL        string
+	RedisAddr       string
 }
 
 func LoadConfig() Config {
@@ -44,5 +45,7 @@ func LoadConfig() Config {
 		SMTPPassword:    os.Getenv("SMTP_PASSWORD"),
 		ResendAPIKey:    os.Getenv("RESEND_API_KEY"),
 		ResendFromEmail: os.Getenv("RESEND_FROM_EMAIL"),
+		RedisURL:        os.Getenv("REDIS_URL"),
+		RedisAddr:       os.Getenv("REDIS_ADDR"),
 	}
 }

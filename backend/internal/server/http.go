@@ -3,6 +3,7 @@ package server
 import (
 	"context"
 	"ticketBooking/internal/booking"
+	"ticketBooking/internal/cache"
 	"ticketBooking/internal/config"
 	"ticketBooking/internal/messaging"
 
@@ -25,6 +26,9 @@ func (cv *CustomValidator) Validate(i any) error {
 }
 
 func Start(cfg config.Config, db *gorm.DB) {
+
+	// Initialize Redis Cache
+	cache.Init(cfg)
 
 	//server initiate
 	e := echo.New()

@@ -1,410 +1,5 @@
-// package user
 
-// import (
-// 	"errors"
-// 	"fmt"
-// 	"ticketBooking/internal/auth"
-// 	"ticketBooking/internal/httpresponse"
-// 	"ticketBooking/internal/otp"
-// 	"ticketBooking/internal/user/dto"
-// 	"ticketBooking/internal/utils/query" )
-
-
-// type messageService interface{
-// StartConversation(senderID uint, req interface{}) (interface{}, error)
-// }
-
-
-// type Service struct{
-// 	repo Repository;
-// 	jwt auth.JwtService
-// 	otp  *otp.Service
-// }
-
-
-// func NewUserService(repo Repository, jwt auth.JwtService, otp *otp.Service) *Service {
-// 	return &Service{repo: repo, jwt: jwt, otp: otp};
-// }
-
-// func (s *Service) CreateUser(req *dto.CreateRequest) (*dto.Response, error) {
-// 	// Check if email already exists
-// 	existing, _ := s.repo.GetUserByEmail(req.Email)
-// 	if existing != nil {
-// 		return nil, fmt.Errorf("email already registered")
-// 	}
-
-// switch req.Role {
-// case "manager":
-// 	req.Role = dto.MANAGER
-
-// case "admin":
-// 	req.Role = dto.ADMIN
-
-// default:
-// 	req.Role = dto.USER
-// }
-
-// 	user := &User{
-// 		Name:       req.Name,
-// 		Email:      req.Email,
-// 		IsVerified: false,
-// 		Role:       req.Role,
-// 		Status: dto.ACTIVE,
-// 	}
-
-// 	if err := user.hashPassword(req.Password); err != nil {
-// 		return nil, err
-// 	}
-
-// 	if err := s.repo.CreateUser(user); err != nil {
-// 		return nil, err
-// 	}
-
-// 	// Send OTP for registration
-// 	if err := s.otp.GenerateAndSend(user.Email,otp.ReasonRegister); err != nil {
-// 		return nil, fmt.Errorf("user created but failed to send OTP: %w", err)
-// 	}
-
-// 	return &dto.Response{
-// 		Id:         user.ID,
-// 		Name:       user.Name,
-// 		Email:      user.Email,
-// 		IsVerified: user.IsVerified,
-// 		CreatedAt:  user.CreatedAt.Format("2006-01-02 15:04:05"),
-// 		Role:user.Role,
-// 	}, nil
-// }
-
-
-// func (s *Service) LoginUser(req *dto.LoginRequest) (*dto.Response, error) {
-// user,err :=s.repo.GetUserByEmail(req.Email);
-
-// if err != nil{
-// 	return nil,err;
-// }
-
-// if user == nil{
-// 	return nil,nil
-// }
-
-// err =user.checkPassword(req.Password);
-// if err != nil{
-// 	return nil,err;
-// }
-
-
-
-// fmt.Println("Login user is ",user);
-// token, err := s.jwt.GenerateToken(user.ID,user.Name,user.Email,user.Role,user.IsVerified)
-// if err != nil {
-// 	return nil, err
-// }
-
-// return &dto.Response{
-// 	Id:        user.ID,
-// 	Name:      user.Name,
-// 	Email:     user.Email,
-// 	Role:      user.Role,
-// 	IsVerified: user.IsVerified,
-// 	CreatedAt: user.CreatedAt.Format("2006-01-02 15:04:05"),
-// 	Token:     token,
-// }, nil
-
-
-// }
-
-
-// func (s *Service) GetMe(userId uint) (*dto.UserResponse, error) {
-// user,err :=s.repo.GetUserById(userId);
-
-// if err != nil{
-// 	return nil,err;
-// }
-
-// if user == nil{
-// 	return nil,nil
-
-// }
-
-// if user.Role == dto.MANAGER {
-// 	return &dto.UserResponse{
-// 		Id:             user.ID,
-// 		Name:           user.Name,
-// 		Email:          user.Email,
-// 		Role:           user.Role,
-// 		Address:        user.Address,
-// 		PhoneNumber:    user.PhoneNumber,
-// 		Country:        user.Country,
-// 		Designation:    user.Designation,
-// 		ProfileImage:   user.ProfileImage,
-// 		ProfileImageId: user.ProfileImageId,
-// 		CreatedAt:      user.CreatedAt,
-// 		UpdatedAt:      user.UpdatedAt,
-// 		IsVerified: user.IsVerified,
-// 		Status: user.Status,
-// 	}, nil
-// }
-
-// return &dto.UserResponse{
-// 	Id:             user.ID,
-// 	Name:           user.Name,
-// 	Email:          user.Email,
-// 	Role:           user.Role,
-// 	Address:        user.Address,
-// 	PhoneNumber:    user.PhoneNumber,
-// 	Country:        user.Country,
-// 	ProfileImage:   user.ProfileImage,
-// 	ProfileImageId: user.ProfileImageId,
-// 	CreatedAt:      user.CreatedAt,
-// 	UpdatedAt:      user.UpdatedAt,
-// 	IsVerified: user.IsVerified,
-// 	Status: user.Status,
-// }, nil
-
-// }
-
-
-// func (s *Service) UpdateUser(userId uint, req *dto.UpdateRequest) (*dto.UserResponse, error) {
-// 	user, err := s.repo.GetUserById(userId)
-// 	if err != nil {
-// 		return nil, err
-// 	}
-// 	if user == nil {
-// 		return nil, errors.New("user not found")
-// 	}
-
-// 	updates := make(map[string]interface{})
-
-// 	if req.Name != nil {
-// 		updates["name"] = *req.Name
-// 	}
-// 	if req.Address != nil {
-// 		updates["address"] = *req.Address
-// 	}
-// 	if req.PhoneNumber != nil {
-// 		updates["phone_number"] = *req.PhoneNumber
-// 	}
-// 	if req.Country != nil {
-// 		updates["country"] = *req.Country
-// 	}
-// 	if req.ProfileImage != nil {
-// 		updates["profile_image"] = *req.ProfileImage
-// 	}
-// 	if req.ProfileImageId != nil {
-// 		updates["profile_image_id"] = *req.ProfileImageId
-// 	}
-// 	if req.Designation != nil && user.Role == dto.MANAGER {
-// 		updates["designation"] = *req.Designation
-// 	}
-
-// 	if len(updates) == 0 {
-// 		return user.buildUserResponse(), nil // কিছুই আপডেট করার নেই
-// 	}
-
-// 	updatedUser, err := s.repo.UpdateUserFields(userId, updates)
-// 	if err != nil {
-// 		return nil, err
-// 	}
-
-// 	return updatedUser.buildUserResponse(), nil
-// }
-
-// func (s *Service) UpdateMember(userId uint, req *dto.UpdateMemberRequest) (*dto.UserResponse, error) {
-// 	user, err := s.repo.GetUserById(userId)
-// 	if err != nil {
-// 		return nil, err
-// 	}
-// 	if user == nil {
-// 		return nil, errors.New("user not found")
-// 	}
-
-// 	updates := make(map[string]interface{})
-
-// 	if req.Name != nil {
-// 		updates["name"] = *req.Name
-// 	}
-// 	if req.Email != nil {
-// 		updates["email"] = *req.Email
-// 	}
-// 	if req.Role != nil {
-// 		updates["role"] = *req.Role
-// 	}
-// 	if req.Address != nil {
-// 		updates["address"] = *req.Address
-// 	}
-// 	if req.PhoneNumber != nil {
-// 		updates["phone_number"] = *req.PhoneNumber
-// 	}
-// 	if req.Country != nil {
-// 		updates["country"] = *req.Country
-// 	}
-// 	if req.ProfileImage != nil {
-// 		updates["profile_image"] = *req.ProfileImage
-// 	}
-// 	if req.ProfileImageId != nil {
-// 		updates["profile_image_id"] = *req.ProfileImageId
-// 	}
-// 	if req.Status != nil {
-// 		updates["status"] = *req.Status
-// 	}
-// 	if req.IsVerified != nil {
-// 		updates["is_verified"] = *req.IsVerified
-// 	}
-
-// 	// Designation logic
-// 	if req.Role != nil {
-// 		if *req.Role == dto.MANAGER {
-// 			if req.Designation != nil {
-// 				updates["designation"] = *req.Designation
-// 			}
-// 		} else {
-// 			updates["designation"] = "" // manager না হলে খালি করে দাও
-// 		}
-// 	} else if req.Designation != nil && user.Role == dto.MANAGER {
-// 		updates["designation"] = *req.Designation
-// 	}
-
-// 	if len(updates) == 0 {
-// 		return user.buildUserResponse(), nil
-// 	}
-
-// 	updatedUser, err := s.repo.UpdateUserFields(userId, updates)
-// 	if err != nil {
-// 		return nil, err
-// 	}
-
-// 	return updatedUser.buildUserResponse(), nil
-// }
-
-
-
-// func (s *Service) DeleteUser(userId uint) error {
-// 	return s.repo.DeleteUser(userId)
-// }
-
-
-// func (s *Service) VerifyOTP(req *dto.VerifyOTPRequest) error {
-// 	if err := s.otp.Verify(req.Email, req.OTP, req.Reason, false); err != nil {
-// 		return err
-// 	}
-
-// 	// যদি register হয় তাহলে user কে verified করে দাও
-// 	if req.Reason == otp.ReasonRegister {
-// 				// kaj korte hobe. 
-
-// 		if err := s.repo.MarkAsVerified(req.Email); 
-// 		err != nil {
-// 			return fmt.Errorf("failed to verify user: %w", err)
-// 		}
-       
-
-// 	}
-
-// 	return nil
-// }
-
-// // ForgotPassword → OTP পাঠায়
-// func (s *Service) ForgotPassword(req *dto.ForgotPasswordRequest) error {
-// 	user, err := s.repo.GetUserByEmail(req.Email)
-// 	if err != nil || user == nil {
-// 		// Security: user না থাকলেও success message দেওয়া ভালো
-// 		return nil
-// 	}
-
-// 	return s.otp.GenerateAndSend(req.Email, otp.ReasonResetPassword)
-// }
-
-// // ResetPassword → OTP verify করে নতুন password সেট করে
-// func (s *Service) ResetPassword(req *dto.ResetPasswordRequest) error {
-// 	// First verify OTP
-// 	if err := s.otp.Verify(req.Email, req.OTP, otp.ReasonResetPassword, true); err != nil {
-// 		return err
-// 	}
-
-
-// 	user, err := s.repo.GetUserByEmail(req.Email)
-// 	if err != nil || user == nil {
-// 		return fmt.Errorf("user not found")
-// 	}
-
-// 	if err := user.hashPassword(req.NewPassword); err != nil {
-// 		return err
-// 	}
-
-//     _, err = s.repo.UpdateUserFields(user.ID, map[string]interface{}{
-// 		"password": user.Password,
-// 	})
-// 		if(err != nil){
-// 		return err
-// 	}
-    
-// 	return nil;
-// }
-
-// // ResendOTP - expired হওয়ার পর আবার OTP পাঠানোর জন্য
-// func (s *Service) ResendOTP(req *dto.ResendOTPRequest) error {
-// 	// Register reason হলে user exist করে কিনা চেক করা ভালো
-// 	if req.Reason == otp.ReasonRegister {
-// 		user, err := s.repo.GetUserByEmail(req.Email)
-// 		if err != nil || user == nil {
-// 			return fmt.Errorf("user not found")
-// 		}
-// 		if user.IsVerified {
-// 			return fmt.Errorf("email is already verified")
-// 		}
-// 	}
-
-// 	// Reset password reason হলে user exist করে কিনা চেক
-// 	if req.Reason == otp.ReasonResetPassword {
-// 		user, err := s.repo.GetUserByEmail(req.Email)
-// 		if err != nil || user == nil {
-// 			// Security কারণে error না দিয়ে silent successও দেওয়া যায়
-// 			return fmt.Errorf("user not found")
-// 		}
-// 	}
-
-// 	return s.otp.GenerateAndSend(req.Email, req.Reason)
-// }
-
-// func (s *Service) GetAllUsers(params query.Params) (*httpresponse.PaginatedData, error) {
-// 	users, total, err := s.repo.GetAll(params)
-// 	if err != nil {
-// 		return nil, err
-// 	}
-
-// 	docs := make([]*dto.UserResponse, 0, len(users))
-// 	for _, u := range users {
-// 		docs = append(docs, u.buildUserResponse())
-// 	}
-
-// 	meta := httpresponse.BuildPaginationMeta(total, params.Page, params.Limit)
-// 	return &httpresponse.PaginatedData{
-// 		Docs:           docs,
-// 		PaginationMeta: meta,
-// 	}, nil
-// }
-
-// func (s *Service) GetUserById(userId uint) (*dto.UserResponse, error){
-// 	singleUser, err := s.repo.GetUserById(userId)
-// 	if err != nil {
-// 		return nil, err
-// 	}
-// 	return  &dto.UserResponse{
-// 	Id:             singleUser.ID,
-// 	Name:           singleUser.Name,
-// 	Email:          singleUser.Email,
-// 	Role:           singleUser.Role,
-// 	Address:        singleUser.Address,
-// 	PhoneNumber:    singleUser.PhoneNumber,
-// 	Country:        singleUser.Country,
-// 	ProfileImage:   singleUser.ProfileImage,
-// 	ProfileImageId: singleUser.ProfileImageId,
-// 	CreatedAt:      singleUser.CreatedAt,
-// 	UpdatedAt:      singleUser.UpdatedAt,
-// }, nil
-// }
 package user
-
 import (
 	"errors"
 	"fmt"
@@ -416,15 +11,12 @@ import (
 	// "ticketBooking/internal/messaging"
 	// messageDTO "ticketBooking/internal/messaging/dto"
 )
-
-
 // type Service struct {
 // 	repo Repository
-// 	jwt  auth.JwtService
-// 	otp  *otp.Service
-// 	msg  *messaging.Service // optional — verified user ↔ admin conversation
+// 	jwt auth.JwtService
+// 	otp *otp.Service
+// 	msg *messaging.Service // optional — verified user ↔ admin conversation
 // }
-
 // func NewUserService(repo Repository, jwt auth.JwtService, otp *otp.Service, msg ...*messaging.Service) *Service {
 // 	s := &Service{repo: repo, jwt: jwt, otp: otp}
 // 	if len(msg) > 0 {
@@ -435,14 +27,12 @@ import (
 type ConversationStarter interface {
 	Start(senderID, receiverID uint) error
 }
-
 type Service struct {
 	repo Repository
-	jwt  auth.JwtService
-	otp  *otp.Service
+	jwt auth.JwtService
+	otp *otp.Service
 	conv ConversationStarter // nil হলে verify-এ chat skip
 }
-
 func NewUserService(repo Repository, jwt auth.JwtService, otp *otp.Service, conv ...ConversationStarter) *Service {
 	s := &Service{repo: repo, jwt: jwt, otp: otp}
 	if len(conv) > 0 && conv[0] != nil {
@@ -450,145 +40,149 @@ func NewUserService(repo Repository, jwt auth.JwtService, otp *otp.Service, conv
 	}
 	return s
 }
-
 func (s *Service) CreateUser(req *dto.CreateRequest) (*dto.Response, error) {
 	// Check if email already exists
 	existing, _ := s.repo.GetUserByEmail(req.Email)
 	if existing != nil {
-		return nil, fmt.Errorf("email already registered")
+		if existing.IsVerified {
+			return nil, fmt.Errorf("email already registered")
+		}
+		// Existing user is not verified yet, allow updating info and resending OTP
+		if err := existing.hashPassword(req.Password); err != nil {
+			return nil, err
+		}
+		switch req.Role {
+		case "manager":
+			existing.Role = dto.MANAGER
+		case "admin":
+			existing.Role = dto.ADMIN
+		default:
+			existing.Role = dto.USER
+		}
+		existing.Name = req.Name
+		if _, err := s.repo.UpdateUserFields(existing.ID, map[string]interface{}{
+			"name": existing.Name,
+			"password": existing.Password,
+			"role": existing.Role,
+		}); err != nil {
+			return nil, err
+		}
+		if err := s.otp.GenerateAndSend(existing.Email, otp.ReasonRegister); err != nil {
+			return nil, fmt.Errorf("failed to send OTP: %w", err)
+		}
+		return &dto.Response{
+			Id: existing.ID,
+			Name: existing.Name,
+			Email: existing.Email,
+			IsVerified: existing.IsVerified,
+			CreatedAt: existing.CreatedAt.Format("2006-01-02 15:04:05"),
+			Role: existing.Role,
+		}, nil
 	}
-
 switch req.Role {
 case "manager":
 	req.Role = dto.MANAGER
-
 case "admin":
 	req.Role = dto.ADMIN
-
 default:
 	req.Role = dto.USER
 }
-
 	user := &User{
-		Name:       req.Name,
-		Email:      req.Email,
+		Name: req.Name,
+		Email: req.Email,
 		IsVerified: false,
-		Role:       req.Role,
+		Role: req.Role,
 		Status: dto.ACTIVE,
 	}
-
 	if err := user.hashPassword(req.Password); err != nil {
 		return nil, err
 	}
-
 	if err := s.repo.CreateUser(user); err != nil {
 		return nil, err
 	}
-
 	// Send OTP for registration
 	if err := s.otp.GenerateAndSend(user.Email,otp.ReasonRegister); err != nil {
+		_ = s.repo.DeleteUser(user.ID)
 		return nil, fmt.Errorf("user created but failed to send OTP: %w", err)
 	}
-
 	return &dto.Response{
-		Id:         user.ID,
-		Name:       user.Name,
-		Email:      user.Email,
+		Id: user.ID,
+		Name: user.Name,
+		Email: user.Email,
 		IsVerified: user.IsVerified,
-		CreatedAt:  user.CreatedAt.Format("2006-01-02 15:04:05"),
+		CreatedAt: user.CreatedAt.Format("2006-01-02 15:04:05"),
 		Role:user.Role,
 	}, nil
 }
-
-
 func (s *Service) LoginUser(req *dto.LoginRequest) (*dto.Response, error) {
 user,err :=s.repo.GetUserByEmail(req.Email);
-
 if err != nil{
 	return nil,err;
 }
-
 if user == nil{
 	return nil,nil
 }
-
 err =user.checkPassword(req.Password);
 if err != nil{
 	return nil,err;
 }
-
-
-
 fmt.Println("Login user is ",user);
 token, err := s.jwt.GenerateToken(user.ID,user.Name,user.Email,user.Role,user.IsVerified)
 if err != nil {
 	return nil, err
 }
-
 return &dto.Response{
-	Id:        user.ID,
-	Name:      user.Name,
-	Email:     user.Email,
-	Role:      user.Role,
+	Id: user.ID,
+	Name: user.Name,
+	Email: user.Email,
+	Role: user.Role,
 	IsVerified: user.IsVerified,
 	CreatedAt: user.CreatedAt.Format("2006-01-02 15:04:05"),
-	Token:     token,
+	Token: token,
 }, nil
-
-
 }
-
-
 func (s *Service) GetMe(userId uint) (*dto.UserResponse, error) {
 user,err :=s.repo.GetUserById(userId);
-
 if err != nil{
 	return nil,err;
 }
-
 if user == nil{
 	return nil,nil
-
 }
-
 if user.Role == dto.MANAGER {
 	return &dto.UserResponse{
-		Id:             user.ID,
-		Name:           user.Name,
-		Email:          user.Email,
-		Role:           user.Role,
-		Address:        user.Address,
-		PhoneNumber:    user.PhoneNumber,
-		Country:        user.Country,
-		Designation:    user.Designation,
-		ProfileImage:   user.ProfileImage,
+		Id: user.ID,
+		Name: user.Name,
+		Email: user.Email,
+		Role: user.Role,
+		Address: user.Address,
+		PhoneNumber: user.PhoneNumber,
+		Country: user.Country,
+		Designation: user.Designation,
+		ProfileImage: user.ProfileImage,
 		ProfileImageId: user.ProfileImageId,
-		CreatedAt:      user.CreatedAt,
-		UpdatedAt:      user.UpdatedAt,
+		CreatedAt: user.CreatedAt,
+		UpdatedAt: user.UpdatedAt,
 		IsVerified: user.IsVerified,
 		Status: user.Status,
 	}, nil
 }
-
 return &dto.UserResponse{
-	Id:             user.ID,
-	Name:           user.Name,
-	Email:          user.Email,
-	Role:           user.Role,
-	Address:        user.Address,
-	PhoneNumber:    user.PhoneNumber,
-	Country:        user.Country,
-	ProfileImage:   user.ProfileImage,
+	Id: user.ID,
+	Name: user.Name,
+	Email: user.Email,
+	Role: user.Role,
+	Address: user.Address,
+	PhoneNumber: user.PhoneNumber,
+	Country: user.Country,
+	ProfileImage: user.ProfileImage,
 	ProfileImageId: user.ProfileImageId,
-	CreatedAt:      user.CreatedAt,
-	UpdatedAt:      user.UpdatedAt,
+	CreatedAt: user.CreatedAt,
+	UpdatedAt: user.UpdatedAt,
 	IsVerified: user.IsVerified,
 	Status: user.Status,
 }, nil
-
 }
-
-
 func (s *Service) UpdateUser(userId uint, req *dto.UpdateRequest) (*dto.UserResponse, error) {
 	user, err := s.repo.GetUserById(userId)
 	if err != nil {
@@ -597,9 +191,7 @@ func (s *Service) UpdateUser(userId uint, req *dto.UpdateRequest) (*dto.UserResp
 	if user == nil {
 		return nil, errors.New("user not found")
 	}
-
 	updates := make(map[string]interface{})
-
 	if req.Name != nil {
 		updates["name"] = *req.Name
 	}
@@ -621,19 +213,15 @@ func (s *Service) UpdateUser(userId uint, req *dto.UpdateRequest) (*dto.UserResp
 	if req.Designation != nil && user.Role == dto.MANAGER {
 		updates["designation"] = *req.Designation
 	}
-
 	if len(updates) == 0 {
 		return user.buildUserResponse(), nil // কিছুই আপডেট করার নেই
 	}
-
 	updatedUser, err := s.repo.UpdateUserFields(userId, updates)
 	if err != nil {
 		return nil, err
 	}
-
 	return updatedUser.buildUserResponse(), nil
 }
-
 func (s *Service) UpdateMember(userId uint, req *dto.UpdateMemberRequest) (*dto.UserResponse, error) {
 	user, err := s.repo.GetUserById(userId)
 	if err != nil {
@@ -642,9 +230,7 @@ func (s *Service) UpdateMember(userId uint, req *dto.UpdateMemberRequest) (*dto.
 	if user == nil {
 		return nil, errors.New("user not found")
 	}
-
 	updates := make(map[string]interface{})
-
 	if req.Name != nil {
 		updates["name"] = *req.Name
 	}
@@ -675,7 +261,6 @@ func (s *Service) UpdateMember(userId uint, req *dto.UpdateMemberRequest) (*dto.
 	if req.IsVerified != nil {
 		updates["is_verified"] = *req.IsVerified
 	}
-
 	// Designation logic
 	if req.Role != nil {
 		if *req.Role == dto.MANAGER {
@@ -688,30 +273,22 @@ func (s *Service) UpdateMember(userId uint, req *dto.UpdateMemberRequest) (*dto.
 	} else if req.Designation != nil && user.Role == dto.MANAGER {
 		updates["designation"] = *req.Designation
 	}
-
 	if len(updates) == 0 {
 		return user.buildUserResponse(), nil
 	}
-
 	updatedUser, err := s.repo.UpdateUserFields(userId, updates)
 	if err != nil {
 		return nil, err
 	}
-
 	return updatedUser.buildUserResponse(), nil
 }
-
-
-
 func (s *Service) DeleteUser(userId uint) error {
 	return s.repo.DeleteUser(userId)
 }
-
 func (s *Service) VerifyOTP(req *dto.VerifyOTPRequest) error {
 	if err := s.otp.Verify(req.Email, req.OTP, req.Reason, false); err != nil {
 		return err
 	}
-
 	if req.Reason == otp.ReasonRegister {
 		if err := s.repo.MarkAsVerified(req.Email); err != nil {
 			return fmt.Errorf("failed to verify user: %w", err)
@@ -732,12 +309,10 @@ func (s *Service) VerifyOTP(req *dto.VerifyOTPRequest) error {
 	}
 	return nil
 }
-
 // func (s *Service) VerifyOTP(req *dto.VerifyOTPRequest) error {
 // 	if err := s.otp.Verify(req.Email, req.OTP, req.Reason, false); err != nil {
 // 		return err
 // 	}
-
 // 	// Register OTP → mark verified + open conversation with every admin
 // 	if req.Reason == otp.ReasonRegister {
 // 		if err := s.repo.MarkAsVerified(req.Email); err != nil {
@@ -758,10 +333,8 @@ func (s *Service) VerifyOTP(req *dto.VerifyOTPRequest) error {
 // 			}
 // 		}
 // 	}
-
 // 	return nil
 // }
-
 // ForgotPassword → OTP পাঠায়
 func (s *Service) ForgotPassword(req *dto.ForgotPasswordRequest) error {
 	user, err := s.repo.GetUserByEmail(req.Email)
@@ -769,37 +342,29 @@ func (s *Service) ForgotPassword(req *dto.ForgotPasswordRequest) error {
 		// Security: user না থাকলেও success message দেওয়া ভালো
 		return nil
 	}
-
 	return s.otp.GenerateAndSend(req.Email, otp.ReasonResetPassword)
 }
-
 // ResetPassword → OTP verify করে নতুন password সেট করে
 func (s *Service) ResetPassword(req *dto.ResetPasswordRequest) error {
 	// First verify OTP
 	if err := s.otp.Verify(req.Email, req.OTP, otp.ReasonResetPassword, true); err != nil {
 		return err
 	}
-
-
 	user, err := s.repo.GetUserByEmail(req.Email)
 	if err != nil || user == nil {
 		return fmt.Errorf("user not found")
 	}
-
 	if err := user.hashPassword(req.NewPassword); err != nil {
 		return err
 	}
-
-    _, err = s.repo.UpdateUserFields(user.ID, map[string]interface{}{
+_, err = s.repo.UpdateUserFields(user.ID, map[string]interface{}{
 		"password": user.Password,
 	})
 		if(err != nil){
 		return err
 	}
-    
 	return nil;
 }
-
 // ResendOTP - expired হওয়ার পর আবার OTP পাঠানোর জন্য
 func (s *Service) ResendOTP(req *dto.ResendOTPRequest) error {
 	// Register reason হলে user exist করে কিনা চেক করা ভালো
@@ -812,7 +377,6 @@ func (s *Service) ResendOTP(req *dto.ResendOTPRequest) error {
 			return fmt.Errorf("email is already verified")
 		}
 	}
-
 	// Reset password reason হলে user exist করে কিনা চেক
 	if req.Reason == otp.ReasonResetPassword {
 		user, err := s.repo.GetUserByEmail(req.Email)
@@ -821,61 +385,53 @@ func (s *Service) ResendOTP(req *dto.ResendOTPRequest) error {
 			return fmt.Errorf("user not found")
 		}
 	}
-
 	return s.otp.GenerateAndSend(req.Email, req.Reason)
 }
-
 func (s *Service) GetAllUsers(params query.Params) (*httpresponse.PaginatedData, error) {
 	users, total, err := s.repo.GetAll(params)
 	if err != nil {
 		return nil, err
 	}
-
 	docs := make([]*dto.UserResponse, 0, len(users))
 	for _, u := range users {
 		docs = append(docs, u.buildUserResponse())
 	}
-
 	meta := httpresponse.BuildPaginationMeta(total, params.Page, params.Limit)
 	return &httpresponse.PaginatedData{
-		Docs:           docs,
+		Docs: docs,
 		PaginationMeta: meta,
 	}, nil
 }
-
 func (s *Service) GetUserById(userId uint) (*dto.UserResponse, error){
 	singleUser, err := s.repo.GetUserById(userId)
 	if err != nil {
 		return nil, err
 	}
-	return  &dto.UserResponse{
-	Id:             singleUser.ID,
-	Name:           singleUser.Name,
-	Email:          singleUser.Email,
-	Role:           singleUser.Role,
-	Address:        singleUser.Address,
-	PhoneNumber:    singleUser.PhoneNumber,
-	Country:        singleUser.Country,
-	ProfileImage:   singleUser.ProfileImage,
+	return &dto.UserResponse{
+	Id: singleUser.ID,
+	Name: singleUser.Name,
+	Email: singleUser.Email,
+	Role: singleUser.Role,
+	Address: singleUser.Address,
+	PhoneNumber: singleUser.PhoneNumber,
+	Country: singleUser.Country,
+	ProfileImage: singleUser.ProfileImage,
 	ProfileImageId: singleUser.ProfileImageId,
-	CreatedAt:      singleUser.CreatedAt,
-	UpdatedAt:      singleUser.UpdatedAt,
+	CreatedAt: singleUser.CreatedAt,
+	UpdatedAt: singleUser.UpdatedAt,
 }, nil
 }
-
 func (s *Service) GetPublicManagerById(userId uint) (*dto.UserResponse, error) {
 	u, err := s.repo.GetUserActiveById(userId)
 	if err != nil { return nil, err }
 	if u.Role != dto.MANAGER { return nil, fmt.Errorf("manager not found") }
 	return u.buildUserResponse(), nil
 }
-
 var (
 	ErrCurrentPasswordWrong = errors.New("current password is incorrect")
-	ErrSamePassword         = errors.New("new password must be different from the current password")
-	ErrUserNotFound         = errors.New("user not found")
+	ErrSamePassword = errors.New("new password must be different from the current password")
+	ErrUserNotFound = errors.New("user not found")
 )
-
 func (s *Service) UpdatePassword(userId uint, req *dto.UpdatePasswordRequest) error {
 	user, err := s.repo.GetUserById(userId)
 	if err != nil || user == nil {
@@ -895,3 +451,5 @@ func (s *Service) UpdatePassword(userId uint, req *dto.UpdatePasswordRequest) er
 	})
 	return err
 }
+
+

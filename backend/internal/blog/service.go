@@ -1,8 +1,11 @@
 package blog
 
 import (
+	"context"
 	"errors"
+	"time"
 	"ticketBooking/internal/blog/dto"
+	"ticketBooking/internal/cache"
 	"ticketBooking/internal/httpresponse"
 	"ticketBooking/internal/user"
 	"ticketBooking/internal/utils/i18n"
@@ -55,10 +58,17 @@ func (s *Service) CreateBlog(req *dto.CreateRequest) (*dto.RawResponse, error) {
 	if err := s.repo.Create(blog); err != nil {
 		return nil, err
 	}
+	_ = cache.Get().DeleteByPrefix(context.Background(), "blogs:")
 	return blog.ToRawResponse(), nil
 }
 
 func (s *Service) GetAllBlogs(params query.Params, lang string) (*httpresponse.PaginatedData, error) {
+	cacheKey := cache.GenerateKey("blogs:all", lang, params.Page, params.Limit, params.Search, params.SortBy, params.SortDir)
+	var cachedData httpresponse.PaginatedData
+	if found, _ := cache.Get().Get(context.Background(), cacheKey, &cachedData); found {
+		return &cachedData, nil
+	}
+
 	blogs, total, err := s.repo.GetAll(params, lang)
 	if err != nil {
 		return nil, err
@@ -70,10 +80,12 @@ func (s *Service) GetAllBlogs(params query.Params, lang string) (*httpresponse.P
 	}
 
 	meta := httpresponse.BuildPaginationMeta(total, params.Page, params.Limit)
-	return &httpresponse.PaginatedData{
+	result := &httpresponse.PaginatedData{
 		Docs:           docs,
 		PaginationMeta: meta,
-	}, nil
+	}
+	_ = cache.Get().Set(context.Background(), cacheKey, result, 15*time.Minute)
+	return result, nil
 }
 
 func (s *Service) GetBlogByID(blogID uint,userID uint) (*dto.DetailResponse, error) {
@@ -148,6 +160,7 @@ func (s *Service) UpdateBlog(blogID uint, req *dto.UpdateRequest) (*dto.RawRespo
 	if err := s.repo.Update(blog); err != nil {
 		return nil, err
 	}
+	_ = cache.Get().DeleteByPrefix(context.Background(), "blogs:")
 
 	updated, err := s.repo.GetByIDAdmin(blogID)
 	if err != nil {
@@ -161,7 +174,11 @@ func (s *Service) DeleteBlog(blogID uint) error {
 	if err != nil {
 		return err
 	}
-	return s.repo.Delete(blog)
+	if err := s.repo.Delete(blog); err != nil {
+		return err
+	}
+	_ = cache.Get().DeleteByPrefix(context.Background(), "blogs:")
+	return nil
 }
 
 func (s *Service) UpdateBlogStatus(req *dto.UpdateBlogStatusRequest) error {
@@ -170,7 +187,11 @@ func (s *Service) UpdateBlogStatus(req *dto.UpdateBlogStatusRequest) error {
 		return err
 	}
 	blog.Status = req.Status
-	return s.repo.Update(blog)
+	if err := s.repo.Update(blog); err != nil {
+		return err
+	}
+	_ = cache.Get().DeleteByPrefix(context.Background(), "blogs:")
+	return nil
 }
 
 // ToggleLike — concurrent safe (DB unique + atomic counter)
@@ -179,6 +200,7 @@ func (s *Service) ToggleLike(blogID, userID uint) (*dto.LikeResponse, error) {
 	if err != nil {
 		return nil, err
 	}
+	_ = cache.Get().DeleteByPrefix(context.Background(), "blogs:")
 	return &dto.LikeResponse{
 		Liked:     liked,
 		LikeCount: count,

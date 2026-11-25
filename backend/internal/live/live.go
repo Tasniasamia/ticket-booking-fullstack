@@ -2,11 +2,14 @@
 package live
 
 import (
+	"context"
 	"encoding/json"
 	"log"
 	"net/http"
 	"sync"
 	"time"
+
+	"ticketBooking/internal/cache"
 
 	"github.com/gorilla/websocket"
 	"github.com/labstack/echo/v5"
@@ -54,6 +57,9 @@ var upgrader = websocket.Upgrader{
 // Kokhono block kore na: kono client dhimi hole tar jonno bartha bad jay
 // (dhimi client er queue age thekei bhora, tar refresh pending ache).
 func (b *Broadcaster) Publish(eventID uint) {
+	// Invalidate event cache so new queries get updated ticket counts
+	_ = cache.Get().DeleteByPrefix(context.Background(), "events:")
+
 	data, err := json.Marshal(Message{Type: "tickets_changed", EventID: eventID})
 	if err != nil {
 		return

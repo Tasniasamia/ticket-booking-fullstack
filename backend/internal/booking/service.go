@@ -1,7 +1,9 @@
 package booking
 
 import (
+	"context"
 	"ticketBooking/internal/booking/dto"
+	"ticketBooking/internal/cache"
 	"ticketBooking/internal/event"
 	"ticketBooking/internal/httpresponse"
 	"ticketBooking/internal/utils/query"
@@ -48,6 +50,7 @@ func (s *Service) CreateBooking(userID uint, req dto.CreateRequest) (*dto.Respon
 		_ = s.eventRepo.IncrementTickets(req.EventID, req.Quantity)
 		return nil, err
 	}
+	_ = cache.Get().DeleteByPrefix(context.Background(), "events:")
 	return b.ToResponse(), nil
 }
 
